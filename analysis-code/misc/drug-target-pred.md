@@ -42,7 +42,7 @@ names(seu.obj@meta.data)[grep("_score", names(seu.obj@meta.data))] <- names(modu
 ```
 &nbsp;
 
-The last bit is to visulize the data.
+The last bit is to visulize the data (will need to `source("customFunctions.R")` or otherwise load in the custom functions for this section).
 ```r
 #set output name if not already set
 outName <- "all_cells"
