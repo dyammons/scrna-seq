@@ -6,7 +6,7 @@ This is an experimental/simplistic approach to predict which cells may be sussce
 
 &nbsp;
 
-NOTE: code not cleaned up
+(NOTE: code not cleaned up.)  
 The analysis approach first loads in the dataset, then does some basic data wrangling. This approach requires a preprocessed Seurat object stored as `seu.obj`.
 ```r
 #load in the data (downloaded from site)
