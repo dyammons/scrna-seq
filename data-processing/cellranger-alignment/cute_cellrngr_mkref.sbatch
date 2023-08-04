@@ -15,8 +15,6 @@
 #SBATCH --output=cellrngr_mkref_%j.txt  # this will capture all output in a logfile with %j as the job #
 
 ######### Instructions ###########
-#export cellranger path -- ensure correct!!
-export PATH=/projects/$USER/software/cellranger-6.1.2:$PATH
 
 #make reference genome
 bash mkref.sh
