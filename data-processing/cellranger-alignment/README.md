@@ -2,12 +2,12 @@ Welcome. The instructions provided here are designed to help you create a refere
 
 # Steps to create reference genome and run cellranger:
 0. [Get to a compile node](#navigate-off-of-a-login-node)
-0. [Install cellranger](#install-cell-ranger)
+0. [Install Cell Ranger](#install-cell-ranger)
 0. [Download and prepare a reference genome](#download-and-prepare-a-reference-genome)
 0. [Download and prepare the GTF annotation file](#download-and-prepare-the-gtf-files)
-0. [Convert the GTF and genome to a cellranger reference](#convert-gtf-file-and-genome-to-cell-ranger-reference-file)
+0. [Convert the GTF and genome to a Cell Ranger reference](#convert-the-gtf-file-and-genome-to-cell-ranger-reference-file)
 0. [Get raw data in an accessible location](#get-raw-data-in-place)
-0. [Run cellranger counts to align data](#run-cell-ranger-counts)
+0. [Run Cell Ranger counts to align data](#run-cell-ranger-counts)
 
 
 ## Navigate off of a login node
@@ -200,7 +200,7 @@ To investigate whether or not you should extend 3' annotations, I recommend look
 
 <br>
 
-## 5. Get raw data in place
+## Get raw data in place
 From here on out you should be working in your scratch space. 
 #### If you are not already in your scratch space you can navigate there with:
 ```sh
