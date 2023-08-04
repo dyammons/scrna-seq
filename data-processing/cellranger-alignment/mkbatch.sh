@@ -23,6 +23,7 @@ email="dyammons@colostate.edu"
 runTime="06:00:00"
 rngrpwd="/projects/$USER/software/cellranger-6.1.2"
 refpwd="/projects/$USER/references/canine/k9_ref_genome"
+partition="amilan"
 
 ##### make the files #####
 #retrieve samples based on what is present in the 01_input folder
@@ -42,7 +43,7 @@ for val in "${StringArray[@]}"; do
 	echo "#SBATCH --ntasks=$numTasks" >> cnts_$val.sbatch
 	echo "#SBATCH --time=$runTime" >> cnts_$val.sbatch
 	echo "" >> cnts_$val.sbatch
-	echo "#SBATCH --partition=shas" >> cnts_$val.sbatch
+	echo "#SBATCH --partition=$partition" >> cnts_$val.sbatch
 	echo "#SBATCH --qos=normal" >> cnts_$val.sbatch
 	echo "" >> cnts_$val.sbatch
 	echo "#SBATCH --mail-type=END" >> cnts_$val.sbatch
