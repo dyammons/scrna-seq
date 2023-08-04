@@ -12,7 +12,7 @@
 #SBATCH --mail-type=END   # Keep these two lines of code if you want an e-mail sent to you when it is complete.
 #SBATCH --mail-user=dyammons@colostate.edu ### change to your email address ###
 
-#SBATCH --output=cellrngr_mkref_%j.txt  # this will capture all output in a logfile with %j as the job #
+#SBATCH --output=cellrngr_mkref_%j.log  # this will capture all output in a logfile with %j as the job #
 
 ######### Instructions ###########
 
