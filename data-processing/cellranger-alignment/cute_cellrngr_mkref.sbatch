@@ -3,7 +3,7 @@
 #SBATCH --job-name=cellranger_mkref
 
 #SBATCH --nodes=1         # this script is designed to run on one node
-#SBATCH --ntasks=4
+#SBATCH --ntasks=8
 #SBATCH --time=01:00:00   # set time; default = 4 hours; 0 = no restriction
 
 #SBATCH --partition=amilan  # modify this to reflect which queue you want to use. Either 'shas' or 'shas-testing'
