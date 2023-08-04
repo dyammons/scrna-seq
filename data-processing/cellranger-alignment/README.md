@@ -99,15 +99,18 @@ Questions? Here is a link to the [ensembl ftp help page](http://uswest.ensembl.o
 #### Ensure files came down correctly
 Whenever you retrieve data from an outside source it is always a good idea to check that the data was not altered during transfer.
 
-The way to do this is to check the MD5 hash, a 128-bit value that is unique to each file. The value on the ensembl ftp site should be in a file called CHECKSUM, so we will retrevie this file then cross reference the hash with the value of the downloaded file. If a file was altered in any way the MD5 hash will change, making it so you can confirm that your files came through uncorrupted. The following code walks you through the process.
+The way to do this is to check the hash, a 128-bit value that is unique to each file. The value on the ensembl ftp site should be in a file called CHECKSUM, so we will retrevie this file then cross reference the hash with the value of the downloaded file. If a file was altered in any way the MD5 hash will change, making it so you can confirm that your files came through uncorrupted. The following code walks you through the process. NOTE: Ensembl uses unix `sum` command, not `md5sum` to calculate the hash, so you have to do the same to verify the file did not get corrupted in transit.
 ```sh
+rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-110/fasta/bos_taurus/dna/CHECKSUMS .
 
-md5sum -c md5chk.md5 #check the values match the expected value
-rm md5chk.md5 #remove check file to clean up directory
+grep ".dna.toplevel" CHECKSUMS
+# output: $ 00439 799942 Bos_taurus.ARS-UCD1.2.dna.toplevel.fa.gz
+
+sum *.dna.toplevel*.fa.gz
+# output: $ 00439 799942
 ```
-The output should look something like: "Canis_lupus_familiaris.CanFam3.1.dna.toplevel.fa.gz: OK"
-
-If you get a warning, such as: "md5sum: WARNING: 1 line is improperly formatted" you should delete the file you initially pulled down and re-download the file, as something likely went wrong!
+Since this is only one file you can visually inspect to make sure the numbers match from both outputs.  
+If the do not match you should delete the file you initially pulled down and re-download the file, as something likely went wrong!
 
 <br>
 
@@ -121,23 +124,27 @@ gunzip *.dna.toplevel*.fa.gz
 ## 3. Download and prepare the GTF files:
 Explore the [ensembl ftp website](https://uswest.ensembl.org/info/data/ftp/index.html) to find the annotation (GTF) file you need.  
 
-#### Pull the GTF from ensembl (current as of Dec. 16, 2021):
+#### Pull the GTF from ensembl:
 ```sh
-rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-104/gtf/canis_lupus_familiaris/*.gtf.gz  .
+rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-104/gtf/canis_lupus_familiaris/*  .
 ```
 
 <br>
 
 #### Check md5sums:
 ```sh
+grep "Bos_taurus.ARS-UCD1.2.110.gtf.gz" CHECKSUMS
+# output: $ 34025 14341 Bos_taurus.ARS-UCD1.2.110.gtf.gz
 
+sum Bos_taurus.ARS-UCD1.2.110.gtf.gz
+# output: 34025 14341
 ```
 
 <br>
 
 #### Prepare the GTF file:
 ```sh	
-gunzip *.gtf.gz
+gunzip Bos_taurus.ARS-UCD1.2.110.gtf.gz
 ```
 
 <br>
@@ -147,7 +154,7 @@ Create bash script called “mkgtf.sh” in your references directory:
 ```sh
 touch mkgtf.sh
 ```
-Then copy over the contents of the [mkgtf.sh script](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/cellranger/mkgtf.sh).
+Then copy over the contents of the [mkgtf.sh script](./mkgtf.sh).
 
 If using a Jupyterhub portal then you can use the file navigator panel to locate and open the file. Alternatively you can edit the file using the command `nano mkgtf.sh`. Note: the Jupyterhub text editor is more user friendly.
 
@@ -159,7 +166,7 @@ bash mkgtf.sh > mkgtf.log 2>&1 &
 ```
 For reference, the “&” on end of the command makes it so the script runs in the background; check progress with cmd: `jobs -l` (that’s a lowercase L)
 		
-The output will be a filtered gtf file: "CanFam_filtered.gtf". The goal of this step is to remove unwanted annotations to make subsequent steps easier in terms of file size. The script provided will keep all protein coding annoations as well as other important annotations, such as immunoglobulin genes. The mininium recommended filter is to select all protein coding annotations, the inclusion of additional annotations is optional. At this point, if there are any additional annotations that are not included in the annotation file, you can `cat` them to include them in the alignment process.
+The output will be a filtered gtf file: "*_filtered.gtf". The goal of this step is to remove unwanted annotations to make subsequent steps easier in terms of file size. The script provided will keep all protein coding annoations as well as other important annotations, such as immunoglobulin genes. The mininium recommended filter is to select all protein coding annotations, the inclusion of additional annotations is optional. At this point, if there are any additional annotations that are not included in the annotation file, you can `cat` them to include them in the alignment process.
 
 <br>
 
@@ -169,7 +176,7 @@ The output will be a filtered gtf file: "CanFam_filtered.gtf". The goal of this 
 ```sh
 touch mkref.sh cute_cellrngr_mkref.sbatch
 ```
-Copy the contents of [mkref.sh](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/cellranger/mkref.sh) and [cute_cellrngr_mkref.sbatch](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/cellranger/cute_cellrngr_mkref.sbatch) to their respective files then customize them to make sure all the paths/settings match the needs of your run.
+Copy the contents of [mkref.sh](./mkref.sh) and [cute_cellrngr_mkref.sbatch](./cute_cellrngr_mkref.sbatch) to their respective files then customize them to make sure all the paths/settings match the needs of your run.
 
 <br>
 
@@ -177,7 +184,7 @@ Copy the contents of [mkref.sh](https://github.com/dyammons/K9-PBMC-scRNAseq/blo
 ```sh
 sbatch cute_cellrngr_mkref.sbatch
 ```	
-Should be completed in under 2 hours
+Should be completed in under 1 hour
 
 <br>
 
@@ -229,13 +236,13 @@ Complete the following step in your 02_scripts directory. If you are not already
 
 #### Create the bash and sbatch scripts to run cellranger counts:
 ```sh
-touch cellrngrCnts.sh cute_cellrngrCnts.sbatch
+touch cellrngr_cnts.sh cute_cellrngr_cnts.sbatch
 ```
-Copy the contents of [cellrngrCnts.sh](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/cellranger/cellrngrCnts.sh) and [cute_cellrngrCnts.sbatch](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/cellranger/cute_cellrngrCnts.sbatch) to their respective files then customize them to make sure all the paths/options match the needs of your run. Once everything looks good you can submit the SLURM job. 
+Copy the contents of [cellrngr_cnts.sh](./cellrngrCnts.sh) and [cute_cellrngr_cnts.sbatch](./cute_cellrngrCnts.sbatch) to their respective files then customize them to make sure all the paths/options match the needs of your run. Once everything looks good you can submit the SLURM job. 
 ```sh
-sbatch cute_cellrngrCnts.sbatch
+sbatch cute_cellrngr_cnts.sbatch
 ```
-The job should take 4-24 hours to run and will create several files for downstream use.
+The job should take 2-24 hours to run and will create several files for downstream use.
 
 If you do not request enough time for the job you can easily resume. All you have to do is go into the cellranger counts output folder (likely named 'run_counts*') and delete the "_lock" file. Once the file is deleted, you can submit the job again using the same sbatch script.
 
