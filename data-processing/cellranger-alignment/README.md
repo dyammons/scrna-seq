@@ -2,12 +2,12 @@ Welcome. The instructions provided here are designed to help you create a refere
 
 # Steps to create reference genome and run cellranger:
 0. [Get to a compile node](#navigate-off-of-a-login-node)
-0. [Install cellranger](#install-cellranger)
-0. [Download and prepare a reference genome](#2-download-and-prepare-a-reference-genome)
-0. [Download and prepare the GTF annotation file](#3-download-and-prepare-the-GTF-files)
-0. [Convert the GTF and genome to a cellranger reference](#4-convert-gtf-file-and-genome-to-cellranger-reference-file)
-0. [Get raw data in an accessible location](#5-get-raw-data-in-place)
-0. [Run cellranger counts to align data](#6-run-cellranger-counts)
+0. [Install cellranger](#install-cell-ranger)
+0. [Download and prepare a reference genome](#download-and-prepare-a-reference-genome)
+0. [Download and prepare the GTF annotation file](#download-and-prepare-the-gtf-files)
+0. [Convert the GTF and genome to a cellranger reference](#convert-gtf-file-and-genome-to-cell-ranger-reference-file)
+0. [Get raw data in an accessible location](#get-raw-data-in-place)
+0. [Run cellranger counts to align data](#run-cell-ranger-counts)
 
 
 ## Navigate off of a login node
@@ -42,7 +42,7 @@ When you first launch a server you will be placed on a login node. The login nod
 
 <br>
 
-## 1. Install cellranger
+## Install Cell Ranger
 Questions? Check out 10x Genomics cell ranger [installation page](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/installation).  
 I recommend downloading cellranger in your projects space on the Alpine server. Navigate to your desired location then install cellranger.  
 Something like this path should work well: `/projects/$USER/software/`.
@@ -83,7 +83,7 @@ To ensure you have access to cellranger when computing, there is an "export" com
 
 <br>
 
-## 2. Download and prepare a reference genome:
+## Download and prepare a reference genome:
 Navigate to your references directory with `cd /projects/$USER/references/`. Then use the command below to pull down the canine genome. If you are interested in a different genome you can pull down any genome using a similar command, you just need to modify the path according to the ensembl ftp webpage.
 
 Note: when navigating the ensembl ftp website the ftp url will likely lack the word “ensembl” – be sure to add it before “pub” (added to cmd below)
@@ -121,7 +121,7 @@ gunzip *.dna.toplevel*.fa.gz
 
 <br>
 
-## 3. Download and prepare the GTF files:
+## Download and prepare the GTF files:
 Explore the [ensembl ftp website](https://uswest.ensembl.org/info/data/ftp/index.html) to find the annotation (GTF) file you need.  
 
 #### Pull the GTF from ensembl:
@@ -170,7 +170,7 @@ The output will be a filtered gtf file: "*_filtered.gtf". The goal of this step 
 
 <br>
 
-## 4. Convert the gtf file and genome to cellranger reference file:
+## Convert the gtf file and genome to Cell Ranger reference file:
 
 #### Create the bash and sbatch scripts in your references directory:
 ```sh
@@ -227,7 +227,7 @@ You will need to know the sample name to run cellranger counts.
 
 <br>
 
-## 6. Run cellranger counts
+## Run Cell Ranger counts
 Now that you have everything in place running the final step should be a breeze!
 
 Complete the following step in your 02_scripts directory. If you are not already there use this command: `cd /scratch/summit/$USER/project_01/02_scripts/`.
