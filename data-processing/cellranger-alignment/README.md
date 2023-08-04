@@ -1,4 +1,6 @@
-Welcome. The instructions provided here are designed to help you create a reference then run raw (fastq) single cell sequencing data through a cellranger pipeline.
+Welcome! The instructions provided here are designed to help you create a reference then run raw (fastq) single-cell RNA sequencing data through a Cell Ranger pipeline.
+
+>Updated August 4, 2023 (Designed to be run on Alpine)
 
 # Steps to create reference genome and run cellranger:
 0. [Get to a compile node](#navigate-off-of-a-login-node)
@@ -96,15 +98,15 @@ Questions? Here is a link to the [ensembl ftp help page](http://uswest.ensembl.o
 
 <br>
 
-#### Ensure files came down correctly
+#### Ensure files came down correctly:
 Whenever you retrieve data from an outside source it is always a good idea to check that the data was not altered during transfer.
 
 The way to do this is to check the hash, a 128-bit value that is unique to each file. The value on the ensembl ftp site should be in a file called CHECKSUM, so we will retrevie this file then cross reference the hash with the value of the downloaded file. If a file was altered in any way the MD5 hash will change, making it so you can confirm that your files came through uncorrupted. The following code walks you through the process. NOTE: Ensembl uses unix `sum` command, not `md5sum` to calculate the hash, so you have to do the same to verify the file did not get corrupted in transit.
 ```sh
-rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-110/fasta/bos_taurus/dna/CHECKSUMS .
+rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-104/fasta/canis_lupus_familiaris/dna/CHECKSUMS .
 
 grep ".dna.toplevel" CHECKSUMS
-# output: $ 00439 799942 Bos_taurus.ARS-UCD1.2.dna.toplevel.fa.gz
+# output: $ 00439 799942 Canis_lupus_familiaris.CanFam3.1.dna.toplevel.fa.gz
 
 sum *.dna.toplevel*.fa.gz
 # output: $ 00439 799942
@@ -131,20 +133,20 @@ rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-104/gtf/canis_lupus_fami
 
 <br>
 
-#### Check md5sums:
+#### Check sums:
 ```sh
-grep "Bos_taurus.ARS-UCD1.2.110.gtf.gz" CHECKSUMS
-# output: $ 34025 14341 Bos_taurus.ARS-UCD1.2.110.gtf.gz
+grep "Canis_lupus_familiaris.CanFam3.1.104.gtf.gz" CHECKSUMS
+# output: $ 61947 17598 Canis_lupus_familiaris.CanFam3.1.104.gtf.gz
 
-sum Bos_taurus.ARS-UCD1.2.110.gtf.gz
-# output: 34025 14341
+sum Canis_lupus_familiaris.CanFam3.1.104.gtf.gz
+# output: 61947 17598
 ```
 
 <br>
 
 #### Prepare the GTF file:
 ```sh	
-gunzip Bos_taurus.ARS-UCD1.2.110.gtf.gz
+gunzip Canis_lupus_familiaris.CanFam3.1.104.gtf.gz
 ```
 
 <br>
