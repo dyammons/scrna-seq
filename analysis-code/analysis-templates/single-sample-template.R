@@ -6,6 +6,9 @@ source("/pl/active/dow_lab/dylan/repos/K9-PBMC-scRNAseq/analysisCode/customFunct
 ### set variables
 mainOutName = ""
 
+### create output dirs
+dir.create("./output/")
+dir.create("./output/s1")
 
 #load in 10x data and qc filter eeach sample
 load10x(din = "./input/", dout = "./output/s1/", outName = mainOutName, testQC = T, 
@@ -21,18 +24,17 @@ seu.obj <- dataVisUMAP(seu.obj = seu.obj, outDir = "./output/s3/", outName = mai
                                      "CD4", "MS4A1", "PPBP","HBM")
                        )
 
-#check QC params
-features <- c("nCount_RNA", "nFeature_RNA", "percent.mt")
-p <- prettyFeats(seu.obj = seu.obj, nrow = 1, ncol = 3, features = features, 
-                 color = "black", order = F, pt.size = 0.0000001, title.size = 18)
-ggsave(paste("./output/", outName, "/", outName, "_QC_feats.png", sep = ""), width = 9, height = 3)
-
 
 #generate preliminary figures 
 seu.obj <- readRDS("./output/s3/230706_duod_h3c6_NoIntrons_res0.4_dims50_dist0.5_neigh40_S3.rds")
 #load in meta data after an intial run through
 # colArray <- read.csv("./refColz.csv", header = T)
 outName <- "allCells"
+
+### create output dirs
+dir.create(paste0("./output/",outName,"/"))
+dir.create(paste0("./output/",outName,"/"))
+dir.create(c(paste0("./output/",outName,"/"),"./output/viln/","./output/singleR/",paste0("./output/viln/",outName,"/"),paste0("./output/singleR/",outName,"/"))
 
 #check QC params again
 features <- c("nCount_RNA", "nFeature_RNA", "percent.mt")
@@ -43,7 +45,7 @@ ggsave(paste("./output/", outName, "/", outName, "_QC_feats.png", sep = ""), wid
 
 #generate violin plots for each cluster
 vilnPlots(seu.obj = seu.obj, groupBy = "clusterID", numOfFeats = 24, outName = mainOutName,
-                     outDir = "./output/viln/", outputGeneList = T, filterOutFeats = c("^MT-", "^RPL", "^RPS")
+                     outDir = paste0("./output/viln/",outName,"/"), outputGeneList = T, filterOutFeats = c("^MT-", "^RPL", "^RPS")
                     )
 
 #plot inital cluster umap
@@ -58,7 +60,7 @@ p <- cusLabels(plot = pi, shape = 21, size = 8, alpha = 0.8) + NoLegend()
 ggsave(paste("./output/", outName, "/", outName, "_rawUMAP.png", sep = ""), width = 7, height = 7)
 
 #use singleR to use human reference for cell classification
-singleR(seu.obj = seu.obj, outName = mainOutName, clusters = "clusterID", outDir = "./output/singleR/")
+singleR(seu.obj = seu.obj, outName = mainOutName, clusters = "clusterID", outDir = paste0("./output/singleR/",outName,"/"))
 
 
 # ### Optional: reference map using PBMC data
