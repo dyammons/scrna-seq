@@ -1,0 +1,26 @@
+## Steps to create computing environment
+
+`SCENIC` is a single-cell specific tool that atempts to use gene expression and known transcription factor netowrks to make inferences about active regulons at the single cell level. The initial implementation was written in R, but is not scalable past ~ 500 cells without using immense amount of computing power. Thus pySCENIC was develop, a faster implmetation.  
+
+The instuctions below are here to provide the spte to generate a functional conda environemnt to complete SCENIC analysis.
+
+```sh
+conda create -n scenic_protocol
+conda activate scenic_protocol
+
+conda install pandas matplotlib seaborn
+conda install -c anaconda cytoolz numpy
+
+conda install scikit-learn statsmodels numba pytables
+conda install -c conda-forge python-igraph louvain
+conda install -c conda-forge multicore-tsne
+pip install scanpy
+
+pip install pyscenic
+
+pip install --user ipykernel
+python -m ipykernel install --user --name=scenic_protocol
+
+#fix a versioning error
+pip install numpy==1.21
+```
