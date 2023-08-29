@@ -50,4 +50,11 @@ conda install -c conda-forge multicore-tsne
 pip install scanpy
 
 pip install pyscenic
+
+pip install --user ipykernel
+python -m ipykernel install --user --name=scPy
+
+#test install
+pyscenic -h
+
 ```
