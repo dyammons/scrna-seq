@@ -31,9 +31,13 @@ conda install -c conda-forge gxx_linux-64==3.4.29
 ^^ above ran into conflicts and did not work :(
 
 ```sh
-conda create -n scPy python=3.6
+conda create -n scPy
 conda activate scPy
 
-conda install pandas matplotlib seaborn
+conda install -c anaconda python=3.6
+
+conda install -c anaconda pandas matplotlib seaborn
+conda install -c anaconda cytoolz numpy
+conda install -c anaconda scikit-learn statsmodels numba pytables
 
 ```
