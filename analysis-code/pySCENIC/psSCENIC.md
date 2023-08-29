@@ -23,4 +23,17 @@ python -m ipykernel install --user --name=scenic_protocol
 
 #fix a versioning error
 pip install numpy==1.21
+
+conda install -c conda-forge gxx_linux-64==3.4.29
+
+```
+
+^^ above ran into conflicts and did not work :(
+
+```sh
+conda create -n scPy python=3.6
+conda activate scPy
+
+conda install pandas matplotlib seaborn
+
 ```
