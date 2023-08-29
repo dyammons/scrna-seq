@@ -39,5 +39,9 @@ conda install -c anaconda python=3.6
 conda install -c anaconda pandas matplotlib seaborn
 conda install -c anaconda cytoolz numpy
 conda install -c anaconda scikit-learn statsmodels numba pytables
+conda install -c conda-forge python-igraph louvain
+conda install -c conda-forge multicore-tsne
+pip install scanpy
 
+pip install pyscenic
 ```
