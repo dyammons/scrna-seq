@@ -30,6 +30,12 @@ conda install -c conda-forge gxx_linux-64==3.4.29
 
 ^^ above ran into conflicts and did not work :(
 
+For this env to solve it is best to set you .condarc file is set to a flexible solver. You can do this with:
+```sh
+conda config --set channel_priority true
+```
+
+Now you should be able to install the required software with the following code block.
 ```sh
 conda create -n scPy
 conda activate scPy
