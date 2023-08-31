@@ -57,6 +57,34 @@ python -m ipykernel install --user --name=scPy
 #test install
 pyscenic -h
 
+#it installed and works, but only with the old tf datasets... scPy2 attempts to get the most recent version running
+
+```
+
+
+
+still a no go due to old pyarrow, nee to upgrade eveything...
+```sh
+conda create -n scPy2
+conda activate scPy2
+
+conda install -c anaconda python=3.10
+
+conda install -c anaconda pandas matplotlib seaborn
+conda install -c anaconda cytoolz numpy
+conda install -c anaconda scikit-learn statsmodels numba pytables
+conda install -c conda-forge python-igraph louvain
+conda install -c conda-forge multicore-tsne
+pip install scanpy
+
+pip install pyscenic
+
+pip install --user ipykernel
+python -m ipykernel install --user --name=scPy
+
+#test install
+pyscenic -h
+
 #it installed, but there is a problem reading feather files, so do...
 pip install --upgrade pyarrow #<< dont do this :(
 
