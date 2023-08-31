@@ -57,4 +57,7 @@ python -m ipykernel install --user --name=scPy
 #test install
 pyscenic -h
 
+#it installed, but there is a problem reading feather files, so do...
+pip install --upgrade pyarrow
+
 ```
