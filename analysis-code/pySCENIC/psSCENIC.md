@@ -80,12 +80,12 @@ pip install scanpy
 pip install pyscenic
 
 pip install --user ipykernel
-python -m ipykernel install --user --name=scPy
+python -m ipykernel install --user --name=scPy2
 
 #test install
 pyscenic -h
 
-#it installed, but there is a problem reading feather files, so do...
-pip install --upgrade pyarrow #<< dont do this :(
+conda list
 
+#running into this error again: ImportError: /lib64/libstdc++.so.6: version `GLIBCXX_3.4.29'
 ```
