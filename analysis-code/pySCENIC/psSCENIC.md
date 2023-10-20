@@ -89,3 +89,11 @@ conda list
 
 #running into this error again: ImportError: /lib64/libstdc++.so.6: version `GLIBCXX_3.4.29'
 ```
+
+
+Software install above is continuing to fail, so try Docker:
+
+```sh
+singularity build aertslab-pyscenic-0.12.1.sif docker://aertslab/pyscenic:0.12.1
+singularity build aertslab-pyscenic-scanpy-0.12.1-1.9.1.sif docker://aertslab/pyscenic_scanpy:0.12.1_1.9.1
+```
