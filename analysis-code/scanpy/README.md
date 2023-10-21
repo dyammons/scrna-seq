@@ -11,6 +11,7 @@ Install analysis software
 conda install -c conda-forge scanpy
 conda install -c conda-forge python-igraph leidenalg
 conda install -c conda-forge python-annoy
+conda install -c conda-forge fa2
 ```
 
 Install ipykernel to get conda env into a kernel
