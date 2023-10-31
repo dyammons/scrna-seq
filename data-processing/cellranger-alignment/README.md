@@ -1,10 +1,10 @@
 Welcome! The instructions provided here are designed to help you create a reference then run raw (fastq) single-cell RNA sequencing data through a Cell Ranger pipeline.
 
->Updated August 4, 2023 (Designed to be run on Alpine)
+>Updated ~~August 4, 2023~~ November 30, 2023 (Designed to be run on Alpine)
 
 # Steps to create reference genome and run cellranger:
 0. [Get to a compile node](#navigate-off-of-a-login-node)
-0. [Install Cell Ranger](#install-cell-ranger)
+0. [Install Cell Ranger](#install-cell-ranger-now-optional)
 0. [Download and prepare a reference genome](#download-and-prepare-a-reference-genome)
 0. [Download and prepare the GTF annotation file](#download-and-prepare-the-gtf-files)
 0. [Convert the GTF and genome to a Cell Ranger reference](#convert-the-gtf-file-and-genome-to-cell-ranger-reference-file)
@@ -13,7 +13,9 @@ Welcome! The instructions provided here are designed to help you create a refere
 
 
 ## Navigate off of a login node
-Before getting everything set up, you should navigate off a login node. If you spawned a server using JupyterHub, then you can ssh to the node in which your server spawned.  
+When you first launch a server you will be placed on a login node. The login node is designed to ba landing place to get you onto the server and you should move to a compute/compile node if you plan to do any work. Thus, almost everytime you launch a server you should run the following commands to get off the login node.
+
+If you spawned a server using JupyterHub, then you can ssh to the node in which your server spawned.  
 
 <br>
 
@@ -34,22 +36,41 @@ ssh c3cpu-c15-u1-1
 
 <br>
 
-If you ssh'd in using a terminal you will be on a login node and can move to a compile node by running:
+If you ssh'd in using a terminal (not my preferred approach) you will be on a login node and can move to a compute (or compile) node by starting an interactive session:
 ```sh
-ssh acompile
+sinteractive --ntasks=1 --time=12:00:00
 ```
-These nodes are designed for light computing and optimizing scripts. For any "real" computing we will be submitting our scripts to a job manager (SLURM).  
 
-When you first launch a server you will be placed on a login node. The login node is designed to ba landing place to get you onto the server and you should move to a compile node if you plan to do any work. Thus, almost everytime you launch a server you should run the above command to get to a compile node.
+These sessions are designed for light computing and optimizing scripts. For any "real" computing we will be submitting our scripts to a job manager (SLURM).  
 
 <br>
 
-## Install Cell Ranger
+## Install Cell Ranger (Now optional)
+
+Cell Ranger is now installed in a software module on Alpine, so there is no need to install the software manually. If you want to use an older version then you may have to complete a manual install following the instructions below. Otherwise, you can simply load the software by running the following:
+```sh
+module load cellranger
+```
+
+To ensure everything is functioning properly run:
+```sh
+cellranger --version
+```
+
+and/or
+
+```sh
+cellranger --help
+```
+
+<details>
+  <summary>Click for manual install instructions</summary>
+
+<br>
+ 
 Questions? Check out 10x Genomics cell ranger [installation page](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/installation).  
 I recommend downloading cellranger in your projects space on the Alpine server. Navigate to your desired location then install cellranger.  
 Something like this path should work well: `/projects/$USER/software/`.
-
-<br>
 
 #### If you need a hint to get started here is some code:
 ```sh
@@ -82,10 +103,12 @@ cellranger
 If you see a help dialog in your terminal then all should be good. Refer to the 10x website if you would like to do further testing.
 
 To ensure you have access to cellranger when computing, there is an "export" command in each bash script. The path should be correct, but double check to make sure the path is correct.
+</details>
 
 <br>
 
 ## Download and prepare a reference genome:
+# TO DO: get all req species listed here
 Navigate to your references directory with `cd /projects/$USER/references/`. Then use the command below to pull down the canine genome. If you are interested in a different genome you can pull down any genome using a similar command, you just need to modify the path according to the ensembl ftp webpage.
 
 Note: when navigating the ensembl ftp website the ftp url will likely lack the word “ensembl” – be sure to add it before “pub” (added to cmd below)
