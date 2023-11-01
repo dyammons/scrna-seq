@@ -14,7 +14,7 @@ conda install -c bioconda r-monocle3
 ```
 
 When done you may want to set your conda config file back to `strict`.  
-(Note: `strick` often results in faster solve times, but can be detrimental if installing software from muliple channels; as done above).
+(Note: `strict` often results in faster solve times, but can be detrimental if installing software from muliple channels; as done above).
 ```sh
 conda config --set channel_priority strict
 ```
