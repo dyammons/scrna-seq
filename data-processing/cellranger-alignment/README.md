@@ -205,7 +205,7 @@ If it turns out all the biotypes are ones that you want included (as is the case
 
 <br>
 
-Once you have the mkgtf.sh bash script run it with the follwoing command:
+Once you have the mkgtf.sh bash script run it with the following command:
 ```sh
 bash mkgtf.sh > mkgtf.log 2>&1 &
 ```
@@ -219,9 +219,9 @@ The output will be a filtered gtf file: `*_FILTERED.gtf`.
 
 #### Create the bash and sbatch scripts in your `/references/canine/` directory:
 ```sh
-touch mkref.sh cute_cellrngr_mkref.sbatch
+touch cute_cellrngr_mkref.sbatch
 ```
-Copy the contents of [mkref.sh](./mkref.sh) and [cute_cellrngr_mkref.sbatch](./cute_cellrngr_mkref.sbatch) to their respective files then customize them to make sure all the paths/settings match the needs of your run.
+Copy the contents of [cute_cellrngr_mkref.sbatch](./cute_cellrngr_mkref.sbatch) to the newly created file then customize it to ensure all the paths/options match the needs of your run.
 
 <br>
 
@@ -282,18 +282,15 @@ Complete the following step in your `02_scripts` directory. If you are not alrea
 
 <br>
 
-#### Create the bash and sbatch scripts to run cellranger counts:
+#### Create the sbatch scripts to run cellranger counts:
 ```sh
-touch mkbatch.sh
+touch cute_cellrngr_cnts.sbatch
 ```
-Copy the contents of [mkbatch.sh](./mkbatch.sh) to the file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good you can use this file to generate `.sh` and `.sbatch` files for each sample in `01_input`. 
+Copy the contents of [cute_cellrngr_cnts.sbatch](./cute_cellrngr_cnts.sbatch) to the file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good you can use this file to generate `.sh` and `.sbatch` files for each sample in `01_input`. 
 ```sh
-bash mkbatch.sh
+sbatch cute_cellrngr_cnts.sbatch
 ```
 
-This will generate a pair of `cnts_<sample_name>.sh` and `cute_cnts_<sample_name>.sbatch` for each sample, plus a file named `jobList.txt`. You can open the `jobList.txt` and check that the commands look as expected (`sbatch cute_cnts_<sample_name>.sbatch`) then do a quick check on one or two of the `cnts_<sample_name>.sh`/`cute_cnts_<sample_name>.sbatch` files.
-
-Once convinced everything looks good, copy all the  contents of `jobList.txt` into your terminal. If you want to proceed cautiously, you can run the top one and make sure it starts properly, then copy the remainder into the terminal.
 
 The each job should take 2-24 hours to run and will create several files for downstream use.
 
