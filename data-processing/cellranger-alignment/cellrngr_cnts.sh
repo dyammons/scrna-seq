@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
 
-pthread=$1
-echo $pthead
+#this command will be populated from the SLURM directives and the .sbatch script
+#make sure the fastqs are in subdirectories within ../01_input and everything shoudl go smoothly
 
-export PATH=/projects/$USER/software/cellranger-6.1.2:$PATH ### Ensure path is correct
-
-#for the command below, add your sample name to the "id", "fastqs", and "sample" options And ensure all paths are correct!
-#if you get an error that fastqs aren't in directory make sure the path is correct and the sample name matches
-cellranger count --id=run_count_<sample name> \
-                 --fastqs=/scratch/summit/$USER/project_01/01_input/<sample name> \
-                 --sample=<sample name> \
+cellranger count --id=${1} \
+                 --fastqs=../01_input/${1}/ \
+                 --sample=${2} \
                  --transcriptome=/projects/$USER/references/K9_ref_genome \
-                 --localcores=$pthread \
                  --expect-cells=5000 ### MODIFY as needed
