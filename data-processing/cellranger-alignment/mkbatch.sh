@@ -6,13 +6,13 @@
 #  Useage: bash mkbatch.sh                                             #
 #                                                                      #
 #  Assumptions:                                                        #
-#    - cellranger is already installed and reference built             #
+#    - cellranger is to be loaded with module load cellranger          #
 #    - run in a directory in which input relative path is ../01_input  #
 #                                                                      #
 #  Requirments: update the user preferences below                      #
 #                                                                      #
 #  Created: October 2023                                               #
-#  Updated: August 4, 2023 - by DA                                     #
+#  Updated: November 22, 2023 - by DA                                  #
 ########################################################################
 
 
@@ -21,7 +21,6 @@ numNode=1
 numTasks=24
 email="dyammons@colostate.edu"
 runTime="06:00:00"
-rngrpwd="/projects/$USER/software/cellranger-6.1.2"
 refpwd="/projects/$USER/references/canine/k9_ref_genome"
 partition="amilan"
 
@@ -34,33 +33,41 @@ declare -a StringArray=($dirs)
 for val in "${StringArray[@]}"; do
 
 	#create sbatch file
-	> cnts_$val.sbatch
-	echo "#!/usr/bin/env bash" >> cnts_$val.sbatch
-	echo "" >> cnts_$val.sbatch
-	echo "#SBATCH --job-name=cnt_$val" >> cnts_$val.sbatch
-	echo "" >> cnts_$val.sbatch
-	echo "#SBATCH --nodes=$numNode" >> cnts_$val.sbatch                       
-	echo "#SBATCH --ntasks=$numTasks" >> cnts_$val.sbatch
-	echo "#SBATCH --time=$runTime" >> cnts_$val.sbatch
-	echo "" >> cnts_$val.sbatch
-	echo "#SBATCH --partition=$partition" >> cnts_$val.sbatch
-	echo "#SBATCH --qos=normal" >> cnts_$val.sbatch
-	echo "" >> cnts_$val.sbatch
-	echo "#SBATCH --mail-type=END" >> cnts_$val.sbatch
-	echo "#SBATCH --mail-user=$email" >> cnts_$val.sbatch
-	echo "#SBATCH --output=cellRngr_$val-%j.log" >> cnts_$val.sbatch
-	echo "" >> cnts_$val.sbatch
-	echo "" >> cnts_$val.sbatch
-	echo "##### Call bash script #####" >> cnts_$val.sbatch
-	echo "" >> cnts_$val.sbatch
-	echo "bash cnts_$val.sh" >> cnts_$val.sbatch
-	echo "" >> cnts_$val.sbatch
+	> cute_cnts_$val.sbatch
+	echo "#!/usr/bin/env bash" >> cute_cnts_$val.sbatch
+	echo "" >> cute_cnts_$val.sbatch
+	echo "#SBATCH --job-name=cnt_$val" >> cute_cnts_$val.sbatch
+ 
+	echo "" >> cute_cnts_$val.sbatch
+	echo "#SBATCH --nodes=$numNode" >> cute_cnts_$val.sbatch                       
+	echo "#SBATCH --ntasks=$numTasks" >> cute_cnts_$val.sbatch
+	echo "#SBATCH --time=$runTime" >> cute_cnts_$val.sbatch
+ 
+	echo "" >> cute_cnts_$val.sbatch
+	echo "#SBATCH --partition=$partition" >> cute_cnts_$val.sbatch
+	echo "#SBATCH --qos=normal" >> cute_cnts_$val.sbatch
+ 
+	echo "" >> cute_cnts_$val.sbatch
+	echo "#SBATCH --mail-type=END" >> cute_cnts_$val.sbatch
+	echo "#SBATCH --mail-user=$email" >> cute_cnts_$val.sbatch
+	echo "#SBATCH --output=cellRngr_$val-%j.log" >> cute_cnts_$val.sbatch
+ 
+	echo "" >> cute_cnts_$val.sbatch
+	echo "module purge" >> cute_cnts_$val.sbatch
+	echo "module load cellranger" >> cute_cnts_$val.sbatch
+ 
+	echo "" >> cute_cnts_$val.sbatch
+	echo "##### Call bash script #####" >> cute_cnts_$val.sbatch
+	echo "" >> cute_cnts_$val.sbatch
+	echo "bash cnts_$val.sh" >> cute_cnts_$val.sbatch
+	echo "" >> cute_cnts_$val.sbatch
 	
 	#create cellranger counts script
 	> cnts_$val.sh
 	echo "#!/usr/bin/env bash" >> cnts_$val.sh
 	echo "" >> cnts_$val.sh
-	echo "export PATH=$rngrpwd:\$PATH" >> cnts_$val.sh
+	
+ 
 	echo "" >> cnts_$val.sh
 	echo "##### Call cellranger count #####" >> cnts_$val.sh
 	echo "cellranger count --id=run_count_$val \\" >> cnts_$val.sh
@@ -71,5 +78,5 @@ for val in "${StringArray[@]}"; do
 	echo "--expect-cells=5000" >> cnts_$val.sh
 	
 	#create list of cmds    
-	echo "sbatch cnts_$val.sbatch" >> jobList.txt
+	echo "sbatch cute_cnts_$val.sbatch" >> jobList.txt
 done 
