@@ -239,8 +239,10 @@ squeue -u $USER
 ```
 A few notes on cellranger mkref:  
 First, here is a link to the [10x mkref documentation](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/advanced/references) I recommend looking it over to ensure you understand the process.  
-Second, gtf annotation files contain a fair amount of information in them, but the default settings in cellranger will only look for annotations associated with the feature type of `exon` and ignore all others. In the context of the 10x platform and short read sequencing it is imporant to note there is a strong 3' bias in read mapping, so you may find that you want to include reads that map to `three_prime_utr` (3' untranslated regions). It is possible to modify the gtf file to convert all `three_prime_utr` data points to `exon`. I am currently evaluating this for see if it enhances alignment & downstream analysis.
-Third, there are a few tool kits that will extend annoations in the 3' direction to increase alignment. The tool I have used is End Sequencing Analysis Toolkit (ESAT), but I am not a huge fan of this tool.
+
+Second, gtf annotation files contain a fair amount of information in them, but the default settings in cellranger will only look for annotations associated with the feature type of `exon` and ignore all others. In the context of the 10x platform and short read sequencing it is imporant to note there is a strong 3' bias in read mapping, so you may find that you want to include reads that map to `three_prime_utr` (3' untranslated regions). It is possible to modify the gtf file to convert all `three_prime_utr` data points to `exon`. I am currently evaluating this for see if it enhances alignment & downstream analysis.  
+
+Third, there are a few tool kits that will extend annoations in the 3' direction to increase alignment. The tool I have used is End Sequencing Analysis Toolkit (ESAT), but I am not a huge fan of this tool.  
 
 If you're curious about how strong the 3' bias is, I recommend looking at metagene plots ([code provided](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/analysisCode/metaGenePlot.md), but underdevelopment/abandoned) to determine how many reads are affected by short 3' utr annotations. From there you can decide how you want to handle this.
 
