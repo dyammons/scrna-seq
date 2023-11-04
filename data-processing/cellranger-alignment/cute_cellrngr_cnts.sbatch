@@ -27,6 +27,8 @@ declare -a StringArray=($samples)
 #declare -a StringArray=("sample1" "sample2" "sample3")
 
 ##### excute cellranger count #####
+sampleName=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fastq.gz" | head -n1 | awk -F "_S" '{print $1}')
+
 cmd1="cellranger count --id=${StringArray[${SLURM_ARRAY_TASK_ID}]} \
                        --fastqs=../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ \
                        --sample=${sampleName} \
