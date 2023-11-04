@@ -26,5 +26,12 @@ declare -a StringArray=($samples)
 #if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
 #declare -a StringArray=("sample1" "sample2" "sample3")
 
-##### Call bash script #####
-bash rngr_cnts.sh ${StringArray[${SLURM_ARRAY_TASK_ID}]} $(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fastq.gz" | head -n1 | awk -F "_S" '{print $1}')
+##### excute cellranger count #####
+cmd1="cellranger count --id=${StringArray[${SLURM_ARRAY_TASK_ID}]} \
+                       --fastqs=../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ \
+                       --sample=${sampleName} \
+                       --transcriptome=/projects/$USER/references/K9_ref_genome \
+                       --expect-cells=5000" ### MODIFY as needed
+echo $cmd1
+echo -e "\t$ ${cmd1}"
+time eval $cmd1
