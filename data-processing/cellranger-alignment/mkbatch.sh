@@ -63,7 +63,6 @@ for val in "${StringArray[@]}"; do
  
 	echo "" >> cute_cnts_$val.sbatch
 	echo "##### Call bash script #####" >> cute_cnts_$val.sbatch
-	echo "" >> cute_cnts_$val.sbatch
 	echo "bash cnts_$val.sh" >> cute_cnts_$val.sbatch
 	echo "" >> cute_cnts_$val.sbatch
 	
