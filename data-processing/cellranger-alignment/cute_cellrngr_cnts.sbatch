@@ -12,9 +12,19 @@
 #SBATCH --mail-user=dyammons@colostate.edu ### change to your email ###
 
 #SBATCH --output=cellrngr_cnt_%j.log  #modify as desired - will output a log file where the "%j" inserts the job ID number
+#SBATCH --array=0-7
 
-######### Instructions ###########
-#below, you don't need to change $SLURM_NTASKS. It will automatically populate whatever you put in --ntasks=# above.
+##### Load cellranger #####
+module purge
+module load cellranger
 
-#run cellranger counts script
-bash cellrngr_cnts.sh $SLURM_NTASKS
+
+##### Load in sample names to run #####
+samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
+declare -a StringArray=($samples)
+
+#if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
+#declare -a StringArray=("sample1" "sample2" "sample3")
+
+##### Call bash script #####
+bash rngr_cnts.sh ${StringArray[${SLURM_ARRAY_TASK_ID}]} $(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fastq.gz" | head -n1 | awk -F "_S" '{print $1}')
