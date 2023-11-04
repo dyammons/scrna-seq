@@ -53,6 +53,8 @@ for val in "${StringArray[@]}"; do
 	echo "#SBATCH --output=cellRngr_$val-%j.log" >> cute_cnts_$val.sbatch
  
 	echo "" >> cute_cnts_$val.sbatch
+	echo "##### Load cellranger #####" >> cnts_$val.sh
+
 	echo "module purge" >> cute_cnts_$val.sbatch
 	echo "module load cellranger" >> cute_cnts_$val.sbatch
  
@@ -65,9 +67,7 @@ for val in "${StringArray[@]}"; do
 	#create cellranger counts script
 	> cnts_$val.sh
 	echo "#!/usr/bin/env bash" >> cnts_$val.sh
-	echo "" >> cnts_$val.sh
 	
- 
 	echo "" >> cnts_$val.sh
 	echo "##### Call cellranger count #####" >> cnts_$val.sh
 	echo "cellranger count --id=run_count_$val \\" >> cnts_$val.sh
