@@ -1,4 +1,4 @@
-Welcome! The instructions provided here are designed to help you create a reference then run raw (fastq) single-cell RNA sequencing data through a Cell Ranger pipeline.
+Welcome! The instructions provided here are designed to help you create a reference then run raw `.fastq` single-cell RNA sequencing data through a Cell Ranger pipeline.
 
 >Updated ~~August 4, 2023~~ November 30, 2023 (Designed to be run on Alpine)
 
