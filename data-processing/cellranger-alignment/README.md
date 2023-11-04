@@ -117,7 +117,7 @@ Note: when navigating the ensembl ftp website the ftp url will likely lack the w
 #don't forget the "." at the end of the command!
 rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-104/fasta/canis_lupus_familiaris/dna/*.dna.toplevel*.fa.gz .
 ```
-Questions? Here is a link to the [ensembl ftp help page](http://uswest.ensembl.org/info/data/ftp/rsync.html).
+Questions? Here is a link to the [ensembl ftp help page](http://ensembl.org/info/data/ftp/rsync.html).
 
 <br>
 
