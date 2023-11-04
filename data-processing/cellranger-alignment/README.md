@@ -13,7 +13,7 @@ Welcome! The instructions provided here are designed to help you create a refere
 
 
 ## Navigate off of a login node
-When you first launch a server you will be placed on a login node. The login node is designed to ba landing place to get you onto the server and you should move to a compute/compile node if you plan to do any work. Thus, almost everytime you launch a server you should run the following commands to get off the login node.
+When you first launch a server you will be placed on a login node. The login node is designed to be landing place to get you onto the server and you should move to a compute/compile node if you plan to do any work. Thus, almost everytime you launch a server you should run the following commands to get off the login node.
 
 If you spawned a server using JupyterHub, then you can ssh to the node in which your server spawned.  
 
@@ -36,12 +36,12 @@ ssh c3cpu-c15-u1-1
 
 <br>
 
-If you ssh'd in using a terminal (not my preferred approach) you will be on a login node and can move to a compute (or compile) node by starting an interactive session:
+If you ssh'd in using a terminal (not my preferred approach) you will be on a login node and can move to a compile node by starting an interactive session:
 ```sh
-sinteractive --ntasks=1 --time=12:00:00
+acompile
 ```
 
-These sessions are designed for light computing and optimizing scripts. For any "real" computing we will be submitting our scripts to a job manager (SLURM).  
+These sessions are designed for light computing, compiling, and optimizing scripts. For any "real" computing we will be submitting our scripts to a job manager (SLURM).  
 
 <br>
 
@@ -109,7 +109,7 @@ To ensure you have access to cellranger when computing, there is an "export" com
 
 ## Download and prepare a reference genome:
 # TO DO: get all req species listed here
-Navigate to your references directory with `cd /projects/$USER/references/`. Then use the command below to pull down the canine genome. If you are interested in a different genome you can pull down any genome using a similar command, you just need to modify the path according to the ensembl ftp webpage.
+Navigate to your references directory with `cd /projects/$USER/references/canine/`. Then use the command below to pull down the canine genome. If you are interested in a different genome you can pull down any genome using a similar command, you just need to modify the path according to the ensembl ftp webpage.
 
 Note: when navigating the ensembl ftp website the ftp url will likely lack the word “ensembl” – be sure to add it before “pub” (added to cmd below)
 #### Get the reference files:
@@ -124,18 +124,18 @@ Questions? Here is a link to the [ensembl ftp help page](http://uswest.ensembl.o
 #### Ensure files came down correctly:
 Whenever you retrieve data from an outside source it is always a good idea to check that the data was not altered during transfer.
 
-The way to do this is to check the hash, a 128-bit value that is unique to each file. The value on the ensembl ftp site should be in a file called CHECKSUM, so we will retrevie this file then cross reference the hash with the value of the downloaded file. If a file was altered in any way the MD5 hash will change, making it so you can confirm that your files came through uncorrupted. The following code walks you through the process. NOTE: Ensembl uses unix `sum` command, not `md5sum` to calculate the hash, so you have to do the same to verify the file did not get corrupted in transit.
+The way to do this is to check the hash, a 128-bit value that is unique to each file. The value on the ensembl ftp site should be in a file called CHECKSUM, so we will retrevie this file then cross reference the hash with the value of the downloaded file. If a file was altered in any way the hash will change, making it so you can confirm that your files came through uncorrupted. The following code walks you through the process. NOTE: Ensembl uses unix `sum` command, not `md5sum` to calculate the hash, so you have to do the same to verify the file did not get corrupted in transit.
 ```sh
 rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-104/fasta/canis_lupus_familiaris/dna/CHECKSUMS .
 
 grep ".dna.toplevel" CHECKSUMS
-# output: $ 00439 799942 Canis_lupus_familiaris.CanFam3.1.dna.toplevel.fa.gz
+# output: $ 32065 708687 Canis_lupus_familiaris.CanFam3.1.dna.toplevel.fa.gz
 
 sum *.dna.toplevel*.fa.gz
-# output: $ 00439 799942
+# output: $ 32065 708687
 ```
 Since this is only one file you can visually inspect to make sure the numbers match from both outputs.  
-If the do not match you should delete the file you initially pulled down and re-download the file, as something likely went wrong!
+If they do not match you should delete the file you initially pulled down and re-download the file, as something likely went wrong!
 
 <br>
 
@@ -168,14 +168,15 @@ sum Canis_lupus_familiaris.CanFam3.1.104.gtf.gz
 <br>
 
 #### Prepare the GTF file:
-```sh	
+```sh
 gunzip Canis_lupus_familiaris.CanFam3.1.104.gtf.gz
+# rm *.gtf.gz #uncomment and run if you want to remove unnecessary files
 ```
 
 <br>
 
 #### Filter the GTF file with cellranger mkgtf:
-Create bash script called “mkgtf.sh” in your references directory:
+Create a bash script called “mkgtf.sh” in your `/references/canine/` directory:
 ```sh
 touch mkgtf.sh
 ```
@@ -185,19 +186,38 @@ If using a Jupyterhub portal then you can use the file navigator panel to locate
 
 <br>
 
+The goal of this step is to remove unwanted annotations to make subsequent steps easier in terms of file size. The script provided will keep all `protein coding` annoations as well as a few other important annotations, such as `immunoglobulin genes`. The mininium recommended filter is to select all `protein coding` annotations, the inclusion of additional annotations is optional. At this point, if there are any additional annotations that are not included in the annotation file, you can `cat` them to include them in the alignment process.  
+
+To check what biotypes are present in the gtf file you can run:
+```sh
+grep -oP 'gene_biotype \K\S+' *.gtf | cut -d"\"" -f2 | sort -u
+
+###output:
+#IG_C_gene
+#IG_V_gene
+#TR_C_gene
+#TR_J_gene
+#TR_V_gene
+#protein_coding
+```
+
+If it turns out all the biotypes are ones that you want included (as is the case above) then this step really isn't necessary, but no harm in running it.
+
+<br>
+
 Once you have the mkgtf.sh bash script run it with the follwoing command:
 ```sh
 bash mkgtf.sh > mkgtf.log 2>&1 &
 ```
-For reference, the “&” on end of the command makes it so the script runs in the background; check progress with cmd: `jobs -l` (that’s a lowercase L)
+For reference, the `&` on end of the command makes it so the script runs in the background; check progress with cmd: `jobs -l` (that’s a lowercase L)
 		
-The output will be a filtered gtf file: "*_filtered.gtf". The goal of this step is to remove unwanted annotations to make subsequent steps easier in terms of file size. The script provided will keep all protein coding annoations as well as other important annotations, such as immunoglobulin genes. The mininium recommended filter is to select all protein coding annotations, the inclusion of additional annotations is optional. At this point, if there are any additional annotations that are not included in the annotation file, you can `cat` them to include them in the alignment process.
+The output will be a filtered gtf file: `*_FILTERED.gtf`. 
 
 <br>
 
 ## Convert the gtf file and genome to Cell Ranger reference file:
 
-#### Create the bash and sbatch scripts in your references directory:
+#### Create the bash and sbatch scripts in your `/references/canine/` directory:
 ```sh
 touch mkref.sh cute_cellrngr_mkref.sbatch
 ```
@@ -209,7 +229,7 @@ Copy the contents of [mkref.sh](./mkref.sh) and [cute_cellrngr_mkref.sbatch](./c
 ```sh
 sbatch cute_cellrngr_mkref.sbatch
 ```	
-Should be completed in under 1 hour
+Should be completed in under 1 hour.
 
 <br>
 
@@ -217,9 +237,12 @@ Should be completed in under 1 hour
 ```sh
 squeue -u $USER
 ```
-A few notes on cellranger mkref: First, here is a link to the [10x mkref documentation](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/advanced/references) I recommend looking it over to ensure you understand the process. Second, gtf annotation files contain a fair amount of information in them, but the default settings in cellranger will only look for annotations associated with the feature type of "exon" and ignore all others. In the context of the 10x platform and short read sequencing it is imporant to note there is a strong 3' bias in read mapping, so you may find that you want to include reads that map the 3' untranslated regions (utrs). It is possible to modify the gtf file to extend 3' utrs (currently working on this), but another strategy is to use the output files from cellranger to extend annotations and alter the count matrix to include reads that map to 3' uts - that is where the End Sequencing Analysis Toolkit (ESAT) comes in.
+A few notes on cellranger mkref:  
+First, here is a link to the [10x mkref documentation](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/advanced/references) I recommend looking it over to ensure you understand the process.  
+Second, gtf annotation files contain a fair amount of information in them, but the default settings in cellranger will only look for annotations associated with the feature type of `exon` and ignore all others. In the context of the 10x platform and short read sequencing it is imporant to note there is a strong 3' bias in read mapping, so you may find that you want to include reads that map to `three_prime_utr` (3' untranslated regions). It is possible to modify the gtf file to convert all `three_prime_utr` data points to `exon`. I am currently evaluating this for see if it enhances alignment & downstream analysis.
+Third, there are a few tool kits that will extend annoations in the 3' direction to increase alignment. The tool I have used is End Sequencing Analysis Toolkit (ESAT), but I am not a huge fan of this tool.
 
-To investigate whether or not you should extend 3' annotations, I recommend looking at metagene plots ([code provided](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/analysisCode/metaGenePlot.md), but underdevelopment) to determine how many reads are affected by short 3' utr annotations. From there you can decide how to proceed.
+If you're curious about how strong the 3' bias is, I recommend looking at metagene plots ([code provided](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/analysisCode/metaGenePlot.md), but underdevelopment/abandoned) to determine how many reads are affected by short 3' utr annotations. From there you can decide how you want to handle this.
 
 #### You should have a reference when the job finishes!
 
@@ -238,37 +261,40 @@ cd project_01
 mkdir 01_input 02_scripts
 cd 01_input
 ```
-The process of getting your raw data onto the server will vary based on where your data is stored. Regardless you will want to put it in your 01_input directory in your scratch space. You can put it in a sub directory or leave it in the main 01_input directory, just note where you put it!
+The process of getting your raw data onto the server will vary based on where your data is stored. Regardless you will want to put it in your 01_input directory in your scratch space. You could put each sample in its own sub directory within `01_input`.
 
 Useful command to move (pull or push) data:
 ```sh
 rsync -avzP -e 'ssh -p 22' <source path> <user name with "\" before the "@">@login.rc.colorado.edu:/scratch/summit/<user name>/project_01/01_input/
 ```
-The above command will send all the files in the directory you are located in on a local terminal to the server, so just navigate to the directory containing your fastq files then run the command. 
+The above command will send all the files in the directory you are located in on a local terminal to the server, so just navigate to the directory containing your `.fastq` files then run the command. 
 
 The file name(s) should looks something like this: \<sample name\>_S7_L004_R1_001.fastq.gz
-
-You will need to know the sample name to run cellranger counts.
 
 <br>
 
 ## Run Cell Ranger counts
 Now that you have everything in place running the final step should be a breeze!
 
-Complete the following step in your 02_scripts directory. If you are not already there use this command: `cd /scratch/summit/$USER/project_01/02_scripts/`.
+Complete the following step in your `02_scripts` directory. If you are not already there use this command: `cd /scratch/summit/$USER/project_01/02_scripts/`.
 
 <br>
 
 #### Create the bash and sbatch scripts to run cellranger counts:
 ```sh
-touch cellrngr_cnts.sh cute_cellrngr_cnts.sbatch
+touch mkbatch.sh
 ```
-Copy the contents of [cellrngr_cnts.sh](./cellrngrCnts.sh) and [cute_cellrngr_cnts.sbatch](./cute_cellrngrCnts.sbatch) to their respective files then customize them to make sure all the paths/options match the needs of your run. Once everything looks good you can submit the SLURM job. 
+Copy the contents of [mkbatch.sh](./mkbatch.sh) to the file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good you can use this file to generate `.sh` and `.sbatch` files for each sample in `01_input`. 
 ```sh
-sbatch cute_cellrngr_cnts.sbatch
+bash mkbatch.sh
 ```
-The job should take 2-24 hours to run and will create several files for downstream use.
 
-If you do not request enough time for the job you can easily resume. All you have to do is go into the cellranger counts output folder (likely named 'run_counts*') and delete the "_lock" file. Once the file is deleted, you can submit the job again using the same sbatch script.
+This will generate a pair of `cnts_<sample_name>.sh` and `cute_cnts_<sample_name>.sbatch` for each sample, plus a file named `jobList.txt`. You can open the `jobList.txt` and check that the commands look as expected (`sbatch cute_cnts_<sample_name>.sbatch`) then do a quick check on one or two of the `cnts_<sample_name>.sh`/`cute_cnts_<sample_name>.sbatch` files.
+
+Once convinced everything looks good, copy all the  contents of `jobList.txt` into your terminal. If you want to proceed cautiously, you can run the top one and make sure it starts properly, then copy the remainder into the terminal.
+
+The each job should take 2-24 hours to run and will create several files for downstream use.
+
+If you do not request enough time for the job (default for the code we are using is 6 hours) you can easily resume. All you have to do is go into the cellranger counts output folder (likely named 'run_counts*') and delete the "_lock" file. Once the file is deleted, you can submit the job again using the same sbatch command.
 
 ## Congratulations! You have completed the alignment of your data to the genome and can now get a sense of what the data look like.
