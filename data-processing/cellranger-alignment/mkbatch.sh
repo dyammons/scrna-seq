@@ -57,8 +57,7 @@ for val in "${StringArray[@]}"; do
 	echo "#SBATCH --output=cellRngr_$val-%j.log" >> cute_cnts_$val.sbatch
  
 	echo "" >> cute_cnts_$val.sbatch
-	echo "##### Load cellranger #####" >> cnts_$val.sh
-
+	echo "##### Load cellranger #####" >> cute_cnts_$val.sbatch
 	echo "module purge" >> cute_cnts_$val.sbatch
 	echo "module load cellranger" >> cute_cnts_$val.sbatch
  
