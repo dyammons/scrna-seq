@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
 
-########################################################################
-#  Function: automate job script creation for multiple scRNA samples!  #
-#                                                                      #
-#  Useage: bash mkbatch.sh                                             #
-#                                                                      #
-#  Assumptions:                                                        #
-#    - cellranger is to be loaded with module load cellranger          #
-#    - run in a directory in which input relative path is ../01_input  #
-#                                                                      #
-#  Requirments: update the user preferences below                      #
-#                                                                      #
-#  Created: October 2023                                               #
-#  Updated: November 22, 2023 - by DA                                  #
-########################################################################
+#########################################################################
+#  Function: automate job script creation for multiple scRNA samples!  	#
+#                                                                      	#
+#  Useage: bash mkbatch.sh                                             	#
+#                                                                      	#
+#  Assumptions:                                                        	#
+#    - cellranger is to be loaded with module load cellranger          	#
+#    - run in a directory in which input relative path is ../01_input  	#
+#                                                                      	#
+#  Requirments: update the user preferences below                      	#
+#                                                                      	#
+#  Known bugs:                                                         	#
+#    - if there are extra dirs in ../01_input/ you will get extra	#
+#      .sbatch and .sh files 						#
+#                                                                      	#
+#  Created: October 2023                                               	#
+#  Updated: November 22, 2023 - by DA                                  	#
+#########################################################################
 
 
 ##### set user preferences #####
