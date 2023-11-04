@@ -11,13 +11,13 @@
 #SBATCH --mail-type=END   # Keep these two lines of code if you want an e-mail sent to you when it is complete.
 #SBATCH --mail-user=dyammons@colostate.edu ### change to your email ###
 
-#SBATCH --output=cellrngr_cnt_%j.log  #modify as desired - will output a log file where the "%j" inserts the job ID number
-#SBATCH --array=0-7
+#SBATCH --output=cellrngr_cnt_%A_%a.log  #modify as desired - will output a log file where the "%A" inserts the job ID number and the %a
+
+#SBATCH --array=0-7 #set this to 0-(# of samples - 1), so the example is for 8 samples -- if you are only running 1 sample, then you can set it to 0-0
 
 ##### Load cellranger #####
 module purge
 module load cellranger
-
 
 ##### Load in sample names to run #####
 samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
