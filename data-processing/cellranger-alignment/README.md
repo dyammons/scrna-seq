@@ -221,7 +221,7 @@ The output will be a filtered gtf file: `*_FILTERED.gtf`.
 ```sh
 touch mkref.sh cute_cellrngr_mkref.sbatch
 ```
-Copy the contents of [mkref.sh](./mkref.sh) and [cute_cellrngr_mkref.sbatch](./cute_cellrngr_mkref.sbatch) to their respective files then customize them to make sure all the paths/settings match the needs of your run.
+Copy the contents of [mkref.sh](./mkref.sh){:target="_blank"} and [cute_cellrngr_mkref.sbatch](./cute_cellrngr_mkref.sbatch) to their respective files then customize them to make sure all the paths/settings match the needs of your run.
 
 <br>
 
