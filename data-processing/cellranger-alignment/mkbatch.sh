@@ -14,6 +14,7 @@
 #  Known bugs:                                                         	#
 #    - if there are extra dirs in ../01_input/ you will get extra	#
 #      .sbatch and .sh files 						#
+#    - this is bad practice.... DO NOT DO THIS!!!!			#  
 #                                                                      	#
 #  Created: October 2023                                               	#
 #  Updated: November 22, 2023 - by DA                                  	#
