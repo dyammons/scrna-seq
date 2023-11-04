@@ -1,25 +1,20 @@
 #!/usr/bin/env bash
 
-#MODIFY change the path to match where cell ranger is with correct cell ranger version
-export PATH=/projects/$USER/software/cellranger-6.1.2:$PATH ### Ensure path is correct ###
+#load cellranger
+module load cellranger
+cellranger --version
 
-#MODIFY replace "<enter_file_name>" with the gtf file to be filtered and modify "CanFam_filtered.gtf" if that is not the name you want
-#can alter filter parameters this list is from 10x – could limit to protein_coding if wanted
-cellranger mkgtf <enter_file_name> CanFam_filtered.gtf \
+#run `grep -oP 'gene_biotype \K\S+' *.gtf | cut -d"\"" -f2 | sort -u` on the .gtf file to determine what the options are for the filtering step
+cmd1="cellranger mkgtf Canis_lupus_familiaris.CanFam3.1.104.gtf Canis_lupus_familiaris.CanFam3.1.104_FILTERED.gtf \
                    --attribute=gene_biotype:protein_coding \
-                   --attribute=gene_biotype:lincRNA \
-                   --attribute=gene_biotype:antisense \
-                   --attribute=gene_biotype:IG_LV_gene \
-                   --attribute=gene_biotype:IG_V_gene \
-                   --attribute=gene_biotype:IG_V_pseudogene \
-                   --attribute=gene_biotype:IG_D_gene \
-                   --attribute=gene_biotype:IG_J_gene \
-                   --attribute=gene_biotype:IG_J_pseudogene \
                    --attribute=gene_biotype:IG_C_gene \
-                   --attribute=gene_biotype:IG_C_pseudogene \
-                   --attribute=gene_biotype:TR_V_gene \
-                   --attribute=gene_biotype:TR_V_pseudogene \
-                   --attribute=gene_biotype:TR_D_gene \
+                   --attribute=gene_biotype:IG_V_gene \
+                   --attribute=gene_biotype:TR_C_gene \
                    --attribute=gene_biotype:TR_J_gene \
-                   --attribute=gene_biotype:TR_J_pseudogene \
-                   --attribute=gene_biotype:TR_C_gene
+                   --attribute=gene_biotype:TR_V_gene"
+                   
+echo $cmd1
+    
+echo -e "\t$ ${cmd1}"
+time eval $cmd1
+    
