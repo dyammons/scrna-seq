@@ -58,9 +58,14 @@ sampleName=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fast
 R1=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "_R1_")
 R2=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "_R2_")
 
+### Update user
+echo -e ">>> INPUT: This script will process the sample files into the following names: "
+echo -e "\tSAMPLE1\tSAMPLE2\tNAMES"
+echo -e "\t$R1\t$R2\t$sampleName\n"
+
 ### Excute kb count
 cmd1="kb count -i $pwd_idx \
--g pwd_tr2g \
+-g $pwd_tr2g \
 -x $chem \
 -t $SLURM_NTASKS \
 --tmp $tmp_dir \
@@ -69,5 +74,7 @@ cmd1="kb count -i $pwd_idx \
 ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/$R1 ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/$R2"
 
 echo $cmd1
+echo -e "\t$ $cmd1"
+time eval $cmd1
 
 ####### END CODE #######
