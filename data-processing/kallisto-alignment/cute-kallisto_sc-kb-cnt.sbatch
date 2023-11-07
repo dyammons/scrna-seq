@@ -1,32 +1,73 @@
 #!/usr/bin/env bash
 
-#SBATCH --job-name=kb-cnt
+#SBATCH --job-name=kal_cnt
+#SBATCH --ntasks=8       # modify this number to reflect how many cores you want to use (up to 64)
+#SBATCH --nodes=1         # this script is designed to run on one node
+#SBATCH --time=01:00:00   # set time; default = 4 hours
 
-#SBATCH --nodes=1
-#SBATCH --ntasks=8
-#SBATCH --time=04:00:80
+#SBATCH --partition=amilan  # modify this to reflect which queue you want to use. Either 'shas' or 'shas-testing'
+#SBATCH --qos=normal      # modify this to reflect which queue you want to use. Options are 'normal' and 'testing'
 
-#SBATCH --partition=amilan
-#SBATCH --qos=normal
+#SBATCH --mail-type=END   # Keep these two lines of code if you want an e-mail sent to you when it is complete.
+#SBATCH --mail-user=dyammons@colostate.edu ### change to your email ###
 
-#SBATCH --mail-type=END
-#SBATCH --mail-user=dyammons@colostate.edu
-#SBATCH --output=kb-cnt-%j.log
+#SBATCH --output=kal_cnt_%A_%a.log  #modify as desired - will output a log file where the "%A" inserts the job ID number and the %a
 
-##### Notes #####
-#This sbatch file is designed to run on sample though kb count using kb-python.
-#Pending successful run (started 11/06/2023 @ 6:40pm) this script will be coverted into an array script
+#SBATCH --array=0-1 #set this to 0-(# of samples - 1), so the example is for 8 samples -- if you are only running 1 sample, then you can set it to 0-0
 
 
-##### Call bash script #####
 
-#ensure the node is clear of pre-loaded software & load conda env with kb-python
+####### BEGIN USER PREFERENCES #######
+
+#pwd to kallisto index
+pwd_idx="/projects/$USER/references/canine/canFam3.1.kb-python.idx"
+
+#pwd to transcript to gene file
+pwd_tr2g="/projects/$USER/references/canine/transcripts_to_genes.txt"
+
+#chemistry used in the assay
+chem="10xv3"
+
+#set the tmp dir -- it should not already exist
+tmp_dir="/scratch/alpine/$USER/tmp/kallisto/"
+
+#set the output directory
+DATE="11-07-2023"
+out_dir="./03_output/$DATE-kb-count_output/"
+
+#set sample names in a sting array
+#samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
+#declare -a StringArray=($samples)
+
+#if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
+declare -a StringArray=("duod_norm_2" "duod_norm_3")
+
+####### END USER PREFERENCES #######
+
+
+
+####### BEGIN CODE #######
+
+### Ensure the node is clear of pre-loaded software & load conda env with kb-python
 module purge
 module load anaconda
 conda activate dsci512
 
-#excute kb count
-kb count -i /projects/$USER/references/canine/canFam3.1.kb-python.idx -g /projects/dyammons@colostate.edu/references/canine/transcripts_to_genes.txt -x 10xv3 \
---h5ad -t $SLURM_NTASKS --tmp /scratch/alpine/dyammons@colostate.edu/tmp/tmp/ \
--o ../03_output/2023-11-06_kb-count_output/duod_norm_1/ \
-/scratch/alpine/dyammons@colostate.edu/proj03_k9_duod/01_input/duod_norm_1/duod_norm_1_CKDL220032323-1A_HMLG2DSX5_S6_L002_R1_001.fastq.gz /scratch/alpine/dyammons@colostate.edu/proj03_k9_duod/01_input/duod_norm_1/duod_norm_1_CKDL220032323-1A_HMLG2DSX5_S6_L002_R2_001.fastq.gz
+### Extract sample variables
+sampleName=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fastq.gz" | head -n1 | awk -F "_S" '{print $1}')
+R1=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "_R1_")
+R2=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "_R2_")
+
+### Excute kb count
+cmd1="kb count -i $pwd_idx \
+-g pwd_tr2g \
+-x $chem \
+-t $SLURM_NTASKS \
+--tmp $tmp_dir \
+-o $out_dir/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ \
+--h5ad \
+../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/$R1 ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/$R2"
+
+echo $cmd1
+
+####### END CODE #######
