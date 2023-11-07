@@ -76,4 +76,20 @@ kb count -i /projects/$USER/references/canine/canFam3.1.kb-python.idx -g /projec
 --h5ad -t 1 --tmp /scratch/alpine/dyammons@colostate.edu/tmp/tmp/ \
 -o ../03_output/ \
 /scratch/alpine/dyammons@colostate.edu/proj03_k9_duod/01_input/duod_norm_1/duod_norm_1_CKDL220032323-1A_HMLG2DSX5_S6_L002_R1_001.fastq.gz /scratch/alpine/dyammons@colostate.edu/proj03_k9_duod/01_input/duod_norm_1/duod_norm_1_CKDL220032323-1A_HMLG2DSX5_S6_L002_R2_001.fastq.gz
+
+
+#[2023-11-06 18:37:20,869]    INFO [count] Using index /projects/dyammons@colostate.edu/references/canine/canFam3.1.kb-python.idx to generate BUS file to ../03_output/2023-11-06_kb-count_output/duod_norm_1/ from
+#[2023-11-06 18:37:20,870]    INFO [count]         /scratch/alpine/dyammons@colostate.edu/proj03_k9_duod/01_input/duod_norm_1/duod_norm_1_CKDL220032323-1A_HMLG2DSX5_S6_L002_R1_001.fastq.gz
+#[2023-11-06 18:37:20,870]    INFO [count]         /scratch/alpine/dyammons@colostate.edu/proj03_k9_duod/01_input/duod_norm_1/duod_norm_1_CKDL220032323-1A_HMLG2DSX5_S6_L002_R2_001.fastq.gz
+#[2023-11-06 18:56:37,785]    INFO [count] Sorting BUS file ../03_output/2023-11-06_kb-count_output/duod_norm_1/output.bus to /scratch/alpine/dyammons@colostate.edu/tmp/tmp/output.s.bus
+#[2023-11-06 18:57:28,182]    INFO [count] Whitelist not provided
+#[2023-11-06 18:57:28,184]    INFO [count] Copying pre-packaged 10XV3 whitelist to ../03_output/2023-11-06_kb-count_output/duod_norm_1/
+#[2023-11-06 18:57:29,587]    INFO [count] Inspecting BUS file /scratch/alpine/dyammons@colostate.edu/tmp/tmp/output.s.bus
+#[2023-11-06 18:57:43,716]    INFO [count] Correcting BUS records in /scratch/alpine/dyammons@colostate.edu/tmp/tmp/output.s.bus to /scratch/alpine/dyammons@colostate.edu/tmp/tmp/output.s.c.bus with whitelist #../03_output/2023-11-06_kb-count_output/duod_norm_1/10x_version3_whitelist.txt
+#[2023-11-06 18:58:03,262]    INFO [count] Sorting BUS file /scratch/alpine/dyammons@colostate.edu/tmp/tmp/output.s.c.bus to ../03_output/2023-11-06_kb-count_output/duod_norm_1/output.unfiltered.bus
+#[2023-11-06 18:58:25,007]    INFO [count] Generating count matrix ../03_output/2023-11-06_kb-count_output/duod_norm_1/counts_unfiltered/cells_x_genes from BUS file ../03_output/2023-11-06_kb-#count_output/duod_norm_1/output.unfiltered.bus
+#[2023-11-06 18:58:48,060]    INFO [count] Reading matrix ../03_output/2023-11-06_kb-count_output/duod_norm_1/counts_unfiltered/cells_x_genes.mtx
+#[2023-11-06 18:59:02,647] WARNING [count] 4432 gene IDs do not have corresponding gene names. These genes will use their gene IDs instead.
+#[2023-11-06 18:59:02,651]    INFO [count] Writing matrix to h5ad ../03_output/2023-11-06_kb-count_output/duod_norm_1/counts_unfiltered/adata.h5ad
+
 ```
