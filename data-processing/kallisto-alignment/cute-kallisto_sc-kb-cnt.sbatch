@@ -33,7 +33,7 @@ tmp_dir="/scratch/alpine/$USER/tmp/kallisto/"
 
 #set the output directory
 DATE="11-07-2023"
-out_dir="./03_output/$DATE-kb-count_output/"
+out_dir="../03_output/$DATE-kb-count_output/"
 
 #set sample names in a sting array
 #samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
