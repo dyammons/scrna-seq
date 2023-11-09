@@ -1,9 +1,9 @@
 Welcome! The instructions provided here are designed to help you create a reference then run raw `.fastq` single-cell RNA sequencing data through a Cell Ranger pipeline.
 
->Updated ~~August 4, 2023~~ November 30, 2023 (Designed to be run on Alpine)
+>Updated ~~August 4, 2023~~ October 30, 2023 (Designed to be run on Alpine)
 
 # Steps to create reference genome and run cellranger:
-0. [Get to a compile node](#navigate-off-of-a-login-node)
+0. [Get a server launched](#get-a-server-launched)
 0. [Install Cell Ranger](#install-cell-ranger-now-optional)
 0. [Download and prepare a reference genome](#download-and-prepare-a-reference-genome)
 0. [Download and prepare the GTF annotation file](#download-and-prepare-the-gtf-files)
@@ -12,7 +12,18 @@ Welcome! The instructions provided here are designed to help you create a refere
 0. [Run Cell Ranger counts to align data](#run-cell-ranger-counts)
 
 
-## Navigate off of a login node
+## Get a server launched
+
+To launch a server using JupyterLab, visit https://ondemand-rmacc.rc.colorado.edu/ and login using your CSU credentials.
+In the OnDemand portal we will launch in interactive Jupyter session to gain access to Alpine (check [this](https://curc.readthedocs.io/en/latest/gateways/OnDemand.html) out for more details).
+
+<br>
+
+<details>
+  <summary>Additional information that we will skip over</summary>  
+
+<br>
+
 When you first launch a server you will be placed on a login node. The login node is designed to be landing place to get you onto the server and you should move to a compute/compile node if you plan to do any work. Thus, almost everytime you launch a server you should run the following commands to get off the login node.
 
 If you spawned a server using JupyterHub, then you can ssh to the node in which your server spawned.  
@@ -22,8 +33,8 @@ If you spawned a server using JupyterHub, then you can ssh to the node in which 
 If unsure what node you are on, you can check with `squeue -u $USER`.
 ```sh
 #output
-JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
-2588422    amilan sys/dash dyammons  R      10:38      1 c3cpu-c15-u1-1
+#JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
+#3672920  acompile sys/dash dyammons  R      11:49      1 c3cpu-a7-u34-4
 ```
 
 <br>
@@ -31,15 +42,12 @@ JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
 The nodelist value associated with the "sys/dash" name is the node that your JupyterHub session is running on and you can move there by running:
 ```sh
 #note: change the node to match the output of your squeue -u $USER command
-ssh c3cpu-c15-u1-1
+ssh c3cpu-a7-u34-4
 ```
+
+</details>
 
 <br>
-
-If you ssh'd in using a terminal (not my preferred approach) you will be on a login node and can move to a compile node by starting an interactive session:
-```sh
-acompile
-```
 
 These sessions are designed for light computing, compiling, and optimizing scripts. For any "real" computing we will be submitting our scripts to a job manager (SLURM).  
 
@@ -108,6 +116,12 @@ To ensure you have access to cellranger when computing, there is an "export" com
 <br>
 
 ## Download and prepare a reference genome:
+
+For this workshop we will be using pre-indexed data, so will essentially be skipping this step today. This is a key part esspecially when working in non-traditional animal models. The hiddden code below walks through the process of how you would go about generating an indexed reference. The specific steps taken to generate each of the references avalible for use today can be found in [:file\_folder: reference-indexing](/scrna-seq/tree/main/data-processing/reference-indexing).
+
+<details>
+  <summary>Click for instructions to pull down required files and generate a genomic index</summary>
+
 # TO DO: get all req species listed here
 Navigate to your references directory with `cd /projects/$USER/references/canine/`. Then use the command below to pull down the canine genome. If you are interested in a different genome you can pull down any genome using a similar command, you just need to modify the path according to the ensembl ftp webpage.
 
@@ -247,6 +261,8 @@ Third, there are a few tool kits that will extend annoations in the 3' direction
 If you're curious about how strong the 3' bias is, I recommend looking at metagene plots ([code provided](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/analysisCode/metaGenePlot.md), but underdevelopment/abandoned) to determine how many reads are affected by short 3' utr annotations. From there you can decide how you want to handle this.
 
 #### You should have a reference when the job finishes!
+
+</details>
 
 <br>
 
