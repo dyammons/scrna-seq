@@ -42,16 +42,16 @@ out_dir="../03_output/$DATE-kb-count_output/"
 #if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
 declare -a StringArray=("duod_norm_2" "duod_norm_3")
 
+#Ensure the node is clear of pre-loaded software & load conda env with kb-python
+module purge
+module load anaconda
+conda activate dsci512 #change the env to match the env with the required software installed
+
 ####### END USER PREFERENCES #######
 
 
 
 ####### BEGIN CODE #######
-
-### Ensure the node is clear of pre-loaded software & load conda env with kb-python
-module purge
-module load anaconda
-conda activate dsci512
 
 ### Extract sample variables
 sampleName=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fastq.gz" | head -n1 | awk -F "_S" '{print $1}')
