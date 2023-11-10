@@ -128,10 +128,13 @@ cd /projects/$USER/references/canine/
 ```
 
 While in the directory we will create a link to a directory in my `scratch` space.  
+
+<br>
+
 Three different commands are provided, so use the one for the reference you wish to use.
 
 <details>
-  <summary>canFam3.1</summary>
+	<summary>canFam3.1</summary>
 	
 ```sh
 ln -sf /scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/canFam31/canine_ref_genome_cellranger-7.1.0_canFam3.1_base/ canine_ref_genome_cellranger-7.1.0_canFam3.1_base
@@ -157,12 +160,16 @@ reference=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_g
 Need to add :)
  
 </details>
-  
+
+<br>
+
 Once the file is properly linked we should now be able to see it, so let's check.
 ```sh
 ls
 #canine_ref_genome_cellranger-7.1.0_canFam3.1_base #should be a teal color
 ```
+
+<br>
 
 <details>
   <summary>If all else fails we will point directly to my scratch space</summary>
@@ -184,7 +191,6 @@ ROS
 
 </details>
 
-<br>
 
 <details>
   <summary>Bonus: click for instructions to pull down required files and generate a genomic index</summary>
@@ -347,7 +353,7 @@ cd project_01
 mkdir 01_input 02_scripts
 cd 01_input
 ```
-The process of getting your raw data onto the server will vary based on where your data is stored. Regardless you will want to put it in your 01_input directory in your scratch space. You could put each sample in its own sub directory within `01_input`.
+The process of getting your raw data onto the server will vary based on where your data is stored. Regardless you will want to put it in your 01_input directory in your scratch space. You should put each sample in its own sub directory within `01_input`.
 
 For today, you have the option of creating a symbolic link or pointing directly to the `.fastq` files in my `scratch` space.
 
@@ -422,9 +428,13 @@ The file name(s) should looks something like this: \<sample name\>_S7_L004_R1_00
 <br>
 
 ## Run Cell Ranger counts
-Now that you have everything in place running the final step should be a breeze!
+Now that you have everything in place running the final step _should_ be a breeze!
 
-Complete the following step in your `02_scripts` directory. If you are not already there use this command: `cd /scratch/alpine/$USER/project_01/02_scripts/`.
+Complete the following step in your `02_scripts` directory. 
+
+```sh
+cd /scratch/alpine/$USER/project_01/02_scripts/
+```
 
 <br>
 
@@ -432,14 +442,86 @@ Complete the following step in your `02_scripts` directory. If you are not alrea
 ```sh
 touch cute_cellrngr_cnts.sbatch
 ```
-Copy the contents of [cute_cellrngr_cnts.sbatch](./cute_cellrngr_cnts.sbatch) to the file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good you can use this file to generate `.sh` and `.sbatch` files for each sample in `01_input`. 
+
+Now, let's print out the paths that we need to use for customization of the `SBATCH` file
+```sh
+#path to input directory
+echo $input_dir
+
+#path to reference directory
+echo $reference
+
+```
+
+Copy the contents of [cute_cellrngr_cnts.sbatch](./cute_cellrngr_cnts.sbatch) to the file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good we will submit a test job to ensure we have a fair chance of getting the job to run first try. 
+
+
 ```sh
 sbatch cute_cellrngr_cnts.sbatch
 ```
 
+Now that we know the script at least has the correct paths, let's update the file for a real run.
 
-The each job should take 2-24 hours to run and will create several files for downstream use.
+<details>
+  <summary>Show real job script</summary>
 
-If you do not request enough time for the job (default for the code we are using is 6 hours) you can easily resume. All you have to do is go into the cellranger counts output folder (likely named 'run_counts*') and delete the "_lock" file. Once the file is deleted, you can submit the job again using the same sbatch command.
+```sh
+#!/usr/bin/env bash
+
+#SBATCH --job-name=cellrngr_cnt
+#SBATCH --ntasks=24       # modify this number to reflect how many cores you want to use (up to 64)
+#SBATCH --nodes=1         # this script is designed to run on one node
+#SBATCH --time=06:00:00   # set time; default = 4 hours
+
+#SBATCH --partition=amilan  # modify this to reflect which queue you want to use. Either 'shas' or 'shas-testing'
+#SBATCH --qos=normal      # modify this to reflect which queue you want to use. Options are 'normal' and 'testing'
+
+#SBATCH --mail-type=END   # Keep these two lines of code if you want an e-mail sent to you when it is complete.
+#SBATCH --mail-user=dyammons@colostate.edu ### change to your email ###
+
+#SBATCH --output=cellrngr_cnt_%A_%a.log  #modify as desired - will output a log file where the "%A" inserts the job ID number and the %a
+
+#SBATCH --array=0-7 #set this to 0-(# of samples - 1), so the example is for 8 samples -- if you are only running 1 sample, then you can set it to 0-0
+
+##### Load cellranger #####
+module purge
+module load cellranger
+
+##### Load in sample names to run #####
+samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
+declare -a StringArray=($samples)
+
+#if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
+#declare -a StringArray=("sample1" "sample2" "sample3")
+
+##### excute cellranger count #####
+sampleName=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fastq.gz" | head -n1 | awk -F "_S" '{print $1}')
+
+cmd1="cellranger count --id=${StringArray[${SLURM_ARRAY_TASK_ID}]} \
+                       --fastqs=../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ \
+                       --sample=${sampleName} \
+                       --transcriptome=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base \
+                       --expect-cells=5000" ### MODIFY as needed
+echo $cmd1
+echo -e "\t$ ${cmd1}"
+time eval $cmd1
+```
+
+</details>
+
+Each job should take 2-24 hours to run and will create several files for downstream use.
+
+If you do not request enough time for the job (default for the code we are using is 6 hours) you can easily resume. All you have to do is go into the cellranger counts output folder for the sample that did not finish and delete the "_lock" file.
+
+Once the file is deleted you will be able to resume the run. Before submitting the job again you will want to change the `StringArray` variable to store the samples that need to be resumed.  
+(NOTE the changes in `#` useage)
+```sh
+##### Load in sample names to run #####
+#samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
+#declare -a StringArray=($samples)
+
+#if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
+declare -a StringArray=("sample1" "sample2" "sample3") #replace with sample names
+```
 
 ## Congratulations! You have completed the alignment of your data to the genome and can now get a sense of what the data look like.
