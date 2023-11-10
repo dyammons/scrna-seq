@@ -13,7 +13,7 @@
 
 #SBATCH --output=kal_cnt_%A_%a.log  #modify as desired - will output a log file where the "%A" inserts the job ID number and the %a
 
-#SBATCH --array=0-1 #set this to 0-(# of samples - 1), so the example is for 8 samples -- if you are only running 1 sample, then you can set it to 0-0
+#SBATCH --array=0-7 #set this to 0-(# of samples - 1), so the example is for 8 samples -- if you are only running 1 sample, then you can set it to 0-0 (although you may want to consider not using an array)
 
 
 
