@@ -2,7 +2,7 @@ Welcome! The instructions provided here are designed to help you create a refere
 
 >Updated ~~August 4, 2023~~ October 30, 2023 (Designed to be run on Alpine)
 
-# Steps to create reference genome and run cellranger
+# Steps to create an indexed reference and run cellranger
 0. [Get a server launched](#get-a-server-launched)
 0. [Install Cell Ranger](#install-cell-ranger-now-optional)
 0. [Download and prepare a reference genome](#download-and-prepare-a-reference-genome)
@@ -119,11 +119,11 @@ To ensure you have access to cellranger when computing, there is an "export" com
 
 For this workshop we will be using pre-indexed references, so we will essentially be skipping this step today. This is a key part esspecially when working in non-traditional animal models. The hiddden code below walks through the process of how you would go about generating an indexed reference for canFam3.1. The specific steps taken to generate each of the references avalible for use today can be found in [:file\_folder: reference-indexing](/data-processing/reference-indexing).
 
-To get the references in place we will create a symbolic link to speed up the process of getting the reference in a useable place.
+To get the references in place we will create a [symbolic link](https://linuxize.com/post/how-to-create-symbolic-links-in-linux-using-the-ln-command/).
 
 To create a symbolic link we will first make a directory to house the data. 
 ```sh
-mkdir /projects/$USER/references/canine/
+mkdir -p /projects/$USER/references/canine/
 cd /projects/$USER/references/canine/
 ```
 
@@ -134,7 +134,7 @@ Three different commands are provided, so use the one for the reference you wish
   <summary>canFam3.1</summary>
 	
 ```sh
-ln -s /scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/canFam31/canine_ref_genome_cellranger-7.1.0_canFam3.1_base/ canine_ref_genome_cellranger-7.1.0_canFam3.1_base
+ln -sf /scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/canFam31/canine_ref_genome_cellranger-7.1.0_canFam3.1_base/ canine_ref_genome_cellranger-7.1.0_canFam3.1_base
 reference=/projects/$USER/references/canine/canine_ref_genome_cellranger-7.1.0_canFam3.1_base
 ```
 
@@ -145,7 +145,7 @@ reference=/projects/$USER/references/canine/canine_ref_genome_cellranger-7.1.0_c
   <summary>canFam4</summary>
 	
 ```sh
-ln -s /scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/gsd/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base/ canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base
+ln -sf /scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/gsd/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base/ canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base
 reference=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base
 ```
 
@@ -349,13 +349,75 @@ cd 01_input
 ```
 The process of getting your raw data onto the server will vary based on where your data is stored. Regardless you will want to put it in your 01_input directory in your scratch space. You could put each sample in its own sub directory within `01_input`.
 
+For today, you have the option of creating a symbolic link or pointing directly to the `.fastq` files in my `scratch` space.
+
+<details open>
+  <summary>Canine PBMC data</summary>
+	
+```sh
+ln -sf /scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/ 01_input
+input_dir=/scratch/alpine/dyammons@colostate.edu/project_01/01_input/
+```
+
+</details>
+
+
+<details>
+  <summary>Canine nasal lavage data (LC and TL only)</summary>
+	
+```sh
+ln -sf /scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/ 01_input
+input_dir=/scratch/alpine/dyammons@colostate.edu/project_01/01_input/
+```
+
+</details>
+  
+Once the files are properly linked we should now be able to see them, so let's check.
+```sh
+ls ./01_input/
+#Healthy_PBMC_2  OSA  OSA_PBMC_2  healthy_PBMC_4  healthy_pbmc_6  k9_PBMC_Healthy_3  k9_PBMC_OSA_3
+
+ls ./01_input/Healthy_PBMC_2/
+#Healthy_PBMC_2_S7_L004_R1_001.fastq.gz  Healthy_PBMC_2_S7_L004_R2_001.fastq.gz
+
+ls ./01_input/healthy_pbmc_6/
+#MD5.txt
+#healthy_pbmc_6_CKDL220005143-1a-SI_TT_H1_HGFT3DSX3_S5_L002_I1_001.fastq.gz
+#healthy_pbmc_6_CKDL220005143-1a-SI_TT_H1_HGFT3DSX3_S5_L002_I2_001.fastq.gz
+#healthy_pbmc_6_CKDL220005143-1a-SI_TT_H1_HGFT3DSX3_S5_L002_R1_001.fastq.gz
+#healthy_pbmc_6_CKDL220005143-1a-SI_TT_H1_HGFT3DSX3_S5_L002_R2_001.fastq.gz
+```
+
+<details>
+  <summary>If all else fails we will point directly to my scratch space</summary>
+
+Canine PBMC
+```sh
+input_dir=/scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/
+```
+
+Canine nasal lavage
+```sh
+input_dir=/scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/
+```
+</details>
+
+<details>
+  <summary>If you were transfering your own data to the server I would use the following rsync command</summary>
+
+ <br>
+ 
 Useful command to move (pull or push) data:
 ```sh
 rsync -avzP -e 'ssh -p 22' <source path> <user name with "\" before the "@">@login.rc.colorado.edu:/scratch/alpine/<user name>/project_01/01_input/
 ```
 The above command will send all the files in the directory you are located in on a local terminal to the server, so just navigate to the directory containing your `.fastq` files then run the command. 
 
+If you do not want to use an `rsync` command I highly recommend using [Globus](https://app.globus.org/file-manager). Globus is a much better option than FileZilla as Globus will check file hashes and repeatedly try if transfer initially fails - this is not the case with FileZilla.
+
 The file name(s) should looks something like this: \<sample name\>_S7_L004_R1_001.fastq.gz
+
+</details>
 
 <br>
 
