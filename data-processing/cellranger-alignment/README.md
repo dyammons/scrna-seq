@@ -117,7 +117,7 @@ To ensure you have access to cellranger when computing, there is an "export" com
 
 ## Download and prepare a reference genome:
 
-For this workshop we will be using pre-indexed data, so will essentially be skipping this step today. This is a key part esspecially when working in non-traditional animal models. The hiddden code below walks through the process of how you would go about generating an indexed reference. The specific steps taken to generate each of the references avalible for use today can be found in [:file\_folder: reference-indexing](/scrna-seq/tree/main/data-processing/reference-indexing).
+For this workshop we will be using pre-indexed data, so will essentially be skipping this step today. This is a key part esspecially when working in non-traditional animal models. The hiddden code below walks through the process of how you would go about generating an indexed reference. The specific steps taken to generate each of the references avalible for use today can be found in [:file\_folder: reference-indexing](/data-processing/reference-indexing).
 
 <details>
   <summary>Click for instructions to pull down required files and generate a genomic index</summary>
