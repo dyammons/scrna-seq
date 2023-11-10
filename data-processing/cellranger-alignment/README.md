@@ -127,8 +127,67 @@ mkdir /projects/$USER/references/canine/
 cd /projects/$USER/references/canine/
 ```
 
+While in the directory we will create a link to a directory in my `scratch` space.  
+Three different commands are provided, so use the one for the reference you wish to use.
+
 <details>
-  <summary>Click for instructions to pull down required files and generate a genomic index</summary>
+  <summary>canFam3.1</summary>
+	
+```sh
+ln -s /scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/canFam31/canine_ref_genome_cellranger-7.1.0_canFam3.1_base/ canine_ref_genome_cellranger-7.1.0_canFam3.1_base
+reference=/projects/$USER/references/canine/canine_ref_genome_cellranger-7.1.0_canFam3.1_base
+```
+
+</details>
+
+
+<details>
+  <summary>canFam4</summary>
+	
+```sh
+ln -s /scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/gsd/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base/ canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base
+reference=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base
+```
+
+</details>
+
+<details>
+  <summary>ROS</summary>
+
+Need to add :)
+ 
+</details>
+  
+Once the file is properly linked we should now be able to see it, so let's check.
+```sh
+ls
+#canine_ref_genome_cellranger-7.1.0_canFam3.1_base #should be a teal color
+```
+
+<details>
+  <summary>If all else fails we will point directly to my scratch space</summary>
+
+CanFam4
+```sh
+reference=/scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/gsd/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base/
+```
+
+CanFam3.1
+```sh
+reference=/scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/canFam31/canine_ref_genome_cellranger-7.1.0_canFam3.1_base/
+```
+
+ROS
+```sh
+#add
+```
+
+</details>
+
+<br>
+
+<details>
+  <summary>Bonus: click for instructions to pull down required files and generate a genomic index</summary>
 
 <br>
 
