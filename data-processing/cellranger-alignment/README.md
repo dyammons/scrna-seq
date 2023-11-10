@@ -24,7 +24,7 @@ In the OnDemand portal we will launch in interactive Jupyter session to gain acc
 
 <br>
 
-When you first launch a server you will be placed on a login node. The login node is designed to be landing place to get you onto the server and you should move to a compute/compile node if you plan to do any work. Thus, almost everytime you launch a server you should run the following commands to get off the login node.
+When you first launch a server you will be placed on a login node. The login node is designed to be landing place to get you onto the server and you should move to a compute/compile node if you plan to do any work. Thus, almost everytime you launch a server you should run the following commands to get off the login node. For today we will not be doing any computational tasks on the node, so we skip over this.
 
 If you spawned a server using JupyterHub, then you can ssh to the node in which your server spawned.  
 
@@ -115,14 +115,23 @@ To ensure you have access to cellranger when computing, there is an "export" com
 
 <br>
 
-## Download and prepare a reference genome:
+## Download and prepare a reference genome
 
-For this workshop we will be using pre-indexed data, so will essentially be skipping this step today. This is a key part esspecially when working in non-traditional animal models. The hiddden code below walks through the process of how you would go about generating an indexed reference. The specific steps taken to generate each of the references avalible for use today can be found in [:file\_folder: reference-indexing](/data-processing/reference-indexing).
+For this workshop we will be using pre-indexed references, so we will essentially be skipping this step today. This is a key part esspecially when working in non-traditional animal models. The hiddden code below walks through the process of how you would go about generating an indexed reference for canFam3.1. The specific steps taken to generate each of the references avalible for use today can be found in [:file\_folder: reference-indexing](/data-processing/reference-indexing).
+
+To get the references in place we will create a symbolic link to speed up the process of getting the reference in a useable place.
+
+To create a symbolic link we will first make a directory to house the data. 
+```sh
+mkdir /projects/$USER/references/canine/
+cd /projects/$USER/references/canine/
+```
 
 <details>
   <summary>Click for instructions to pull down required files and generate a genomic index</summary>
 
-# TO DO: get all req species listed here
+<br>
+
 Navigate to your references directory with `cd /projects/$USER/references/canine/`. Then use the command below to pull down the canine genome. If you are interested in a different genome you can pull down any genome using a similar command, you just need to modify the path according to the ensembl ftp webpage.
 
 Note: when navigating the ensembl ftp website the ftp url will likely lack the word “ensembl” – be sure to add it before “pub” (added to cmd below)
@@ -229,7 +238,7 @@ The output will be a filtered gtf file: `*_FILTERED.gtf`.
 
 <br>
 
-## Convert the gtf file and genome to Cell Ranger reference file:
+## Convert the gtf file and genome to Cell Ranger reference file
 
 #### Create the bash and sbatch scripts in your `/references/canine/` directory:
 ```sh
@@ -270,7 +279,7 @@ If you're curious about how strong the 3' bias is, I recommend looking at metage
 From here on out you should be working in your scratch space. 
 #### If you are not already in your scratch space you can navigate there with:
 ```sh
-cd /scratch/summit/$USER
+cd /scratch/alpine/$USER
 ```
 #### Let's make some directories for organization:
 ```sh
@@ -283,7 +292,7 @@ The process of getting your raw data onto the server will vary based on where yo
 
 Useful command to move (pull or push) data:
 ```sh
-rsync -avzP -e 'ssh -p 22' <source path> <user name with "\" before the "@">@login.rc.colorado.edu:/scratch/summit/<user name>/project_01/01_input/
+rsync -avzP -e 'ssh -p 22' <source path> <user name with "\" before the "@">@login.rc.colorado.edu:/scratch/alpine/<user name>/project_01/01_input/
 ```
 The above command will send all the files in the directory you are located in on a local terminal to the server, so just navigate to the directory containing your `.fastq` files then run the command. 
 
@@ -294,7 +303,7 @@ The file name(s) should looks something like this: \<sample name\>_S7_L004_R1_00
 ## Run Cell Ranger counts
 Now that you have everything in place running the final step should be a breeze!
 
-Complete the following step in your `02_scripts` directory. If you are not already there use this command: `cd /scratch/summit/$USER/project_01/02_scripts/`.
+Complete the following step in your `02_scripts` directory. If you are not already there use this command: `cd /scratch/alpine/$USER/project_01/02_scripts/`.
 
 <br>
 
