@@ -2,7 +2,7 @@ Welcome! The instructions provided here are designed to help you create a refere
 
 >Updated ~~August 4, 2023~~ October 30, 2023 (Designed to be run on Alpine)
 
-# Steps to create reference genome and run cellranger:
+# Steps to create reference genome and run cellranger
 0. [Get a server launched](#get-a-server-launched)
 0. [Install Cell Ranger](#install-cell-ranger-now-optional)
 0. [Download and prepare a reference genome](#download-and-prepare-a-reference-genome)
