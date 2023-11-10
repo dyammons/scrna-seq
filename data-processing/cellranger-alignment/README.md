@@ -486,6 +486,7 @@ Now that we know the script at least has the correct paths, let's update the fil
 ##### Load cellranger #####
 module purge
 module load cellranger
+cellranger --version
 
 ##### Load in sample names to run #####
 samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
