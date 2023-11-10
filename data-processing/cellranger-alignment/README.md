@@ -1,6 +1,6 @@
 Welcome! The instructions provided here are designed to help you create a reference then run raw `.fastq` single-cell RNA sequencing data through a Cell Ranger pipeline.
 
->Updated ~~August 4, 2023~~ October 30, 2023 (Designed to be run on Alpine)
+>Updated ~~August 4, 2023~~ ~~October 30, 2023~~ November 10, 2023 (Designed to be run on Alpine and modified for workshop)
 
 # Steps to create an indexed reference and run cellranger
 0. [Get a server launched](#get-a-server-launched)
