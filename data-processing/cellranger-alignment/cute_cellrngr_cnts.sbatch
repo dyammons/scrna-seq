@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 
 #SBATCH --job-name=cellrngr_cnt
-#SBATCH --ntasks=24       # modify this number to reflect how many cores you want to use (up to 64)
 #SBATCH --nodes=1         # this script is designed to run on one node
-#SBATCH --time=06:00:00   # set time; default = 4 hours
 
-#SBATCH --partition=amilan  # modify this to reflect which queue you want to use. Either 'shas' or 'shas-testing'
-#SBATCH --qos=normal      # modify this to reflect which queue you want to use. Options are 'normal' and 'testing'
+#SBATCH --partition=atesting  # modify this to reflect which queue you want to use. Either 'shas' or 'shas-testing'
+#SBATCH --qos=testing      # modify this to reflect which queue you want to use. Options are 'normal' and 'testing'
 
 #SBATCH --mail-type=END   # Keep these two lines of code if you want an e-mail sent to you when it is complete.
 #SBATCH --mail-user=dyammons@colostate.edu ### change to your email ###
@@ -18,6 +16,7 @@
 ##### Load cellranger #####
 module purge
 module load cellranger
+cellranger --version
 
 ##### Load in sample names to run #####
 samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
@@ -35,5 +34,5 @@ cmd1="cellranger count --id=${StringArray[${SLURM_ARRAY_TASK_ID}]} \
                        --transcriptome=/projects/$USER/references/K9_ref_genome \
                        --expect-cells=5000" ### MODIFY as needed
 echo $cmd1
-echo -e "\t$ ${cmd1}"
-time eval $cmd1
+#echo -e "\t$ ${cmd1}"
+#time eval $cmd1
