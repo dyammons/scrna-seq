@@ -458,6 +458,10 @@ Copy the contents of [cute_cellrngr_cnts.sbatch](./cute_cellrngr_cnts.sbatch) to
 sbatch cute_cellrngr_cnts.sbatch
 ```
 
+You can check the progress of the job by running.
+```sh
+squeue -u $USER
+```
 Now that we know the script at least has the correct paths, let's update the file for a real run.
 
 <details>
