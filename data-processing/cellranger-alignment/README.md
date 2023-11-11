@@ -360,7 +360,6 @@ For today, you have the option of creating a symbolic link or pointing directly 
 	
 ```sh
 ln -sf /scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/ 01_input
-input_dir=/scratch/alpine/dyammons@colostate.edu/project_01/01_input/
 ```
 
 </details>
@@ -371,7 +370,6 @@ input_dir=/scratch/alpine/dyammons@colostate.edu/project_01/01_input/
 	
 ```sh
 ln -sf /scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/ 01_input
-input_dir=/scratch/alpine/dyammons@colostate.edu/project_01/01_input/
 ```
 
 </details>
@@ -443,12 +441,8 @@ touch cute_cellrngr_cnts.sbatch
 
 Now, let's print out the paths that we need to use for customization of the `SBATCH` file
 ```sh
-#path to input directory
-echo $input_dir
-
 #path to reference directory
 echo $reference
-
 ```
 
 Copy the contents of [cute_cellrngr_cnts.sbatch](./cute_cellrngr_cnts.sbatch) to the file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good we will submit a test job to ensure we have a fair chance of getting the job to run first try. 
@@ -473,7 +467,7 @@ Now that we know the script at least has the correct paths, let's update the fil
 #SBATCH --job-name=cellrngr_cnt
 #SBATCH --ntasks=24       # modify this number to reflect how many cores you want to use (up to 64)
 #SBATCH --nodes=1         # this script is designed to run on one node
-#SBATCH --time=00:10:00   # set time; default = 4 hours
+#SBATCH --time=06:00:00   # set time; default = 4 hours
 
 #SBATCH --partition=amilan  # modify this to reflect which queue you want to use. Either 'shas' or 'shas-testing'
 #SBATCH --qos=normal      # modify this to reflect which queue you want to use. Options are 'normal' and 'testing'
@@ -483,7 +477,7 @@ Now that we know the script at least has the correct paths, let's update the fil
 
 #SBATCH --output=cellrngr_cnt_%A_%a.log  #modify as desired - will output a log file where the "%A" inserts the job ID number and the %a
 
-#SBATCH --array=0-0 #set this to 0-(# of samples - 1), so the example is for 8 samples -- if you are only running 1 sample, then you can set it to 0-0
+#SBATCH --array=0-5 #set this to 0-(# of samples - 1), so the example is for 8 samples -- if you are only running 1 sample, then you can set it to 0-0
 
 
 
