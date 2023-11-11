@@ -364,7 +364,7 @@ It is worth noting, that in real life application the process of getting your ra
 <br>
 
 <details open>
-  <summary>Canine PBMC data</summary>
+  <summary>Symbolic link to canine PBMC data</summary>
 
 <br>
 
@@ -376,7 +376,7 @@ ln -sf /scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/ 01_input
 
 
 <details>
-  <summary>Canine nasal lavage data (LC and TL only)</summary>
+  <summary>Symbolic link to canine nasal lavage data (LC and TL only)</summary>
 
 <br>
 
