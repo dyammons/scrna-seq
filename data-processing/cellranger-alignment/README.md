@@ -348,9 +348,8 @@ cd /scratch/alpine/$USER
 ```
 #### Let's make some directories for organization:
 ```sh
-mkdir project_01
+mkdir -p ./project_01/02_scripts/
 cd project_01
-mkdir 02_scripts
 ```
 The process of getting your raw data onto the server will vary based on where your data is stored. Regardless you will want to put it in your 01_input directory in your scratch space. You should put each sample in its own sub directory within `01_input`.
 
