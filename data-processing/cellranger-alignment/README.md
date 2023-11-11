@@ -6,8 +6,6 @@ Welcome! The instructions provided here are designed to help you create a refere
 0. [Get a server launched](#get-a-server-launched)
 0. [Install Cell Ranger](#install-cell-ranger-now-optional)
 0. [Download and prepare a reference genome](#download-and-prepare-a-reference-genome)
-0. [Download and prepare the GTF annotation file](#download-and-prepare-the-gtf-files)
-0. [Convert the GTF and genome to a Cell Ranger reference](#convert-the-gtf-file-and-genome-to-cell-ranger-reference-file)
 0. [Get raw data in an accessible location](#get-raw-data-in-place)
 0. [Run Cell Ranger counts to align data](#run-cell-ranger-counts)
 
@@ -55,7 +53,7 @@ These sessions are designed for light computing, compiling, and optimizing scrip
 
 ## Install Cell Ranger (Now optional)
 
-Cell Ranger is now installed in a software module on Alpine, so there is no need to install the software manually. If you want to use an older version then you may have to complete a manual install following the instructions below. Otherwise, you can simply load the software by running the following:
+`Cell Ranger` is now installed in a software module on Alpine, so there is no need to install the software manually. If you want to use an older version then you may have to complete a manual install following the instructions below. Otherwise, you can simply load the software by running the following:
 ```sh
 module load cellranger
 ```
@@ -80,7 +78,7 @@ Questions? Check out 10x Genomics cell ranger [installation page](https://suppor
 I recommend downloading cellranger in your projects space on the Alpine server. Navigate to your desired location then install cellranger.  
 Something like this path should work well: `/projects/$USER/software/`.
 
-#### If you need a hint to get started here is some code:
+If you need a hint to get started here is some code:
 ```sh
 mkdir -p /projects/$USER/software/
 cd /projects/$USER/software/
@@ -117,21 +115,20 @@ To ensure you have access to cellranger when computing, there is an "export" com
 
 ## Download and prepare a reference genome
 
-For this workshop we will be using pre-indexed references, so we will essentially be skipping this step today. This is a key part esspecially when working in non-traditional animal models. The hiddden code below walks through the process of how you would go about generating an indexed reference for canFam3.1. The specific steps taken to generate each of the references avalible for use today can be found in [:file\_folder: reference-indexing](/data-processing/reference-indexing).
+For this workshop we will be using pre-indexed references, so we will essentially be skipping this step today. This is a key part esspecially when working in non-traditional animal models. The hidden code below walks through the process of how you would go about generating an indexed reference for canFam3.1. The specific steps taken to generate each of the references avalible for use today can be found in [:file\_folder: reference-indexing](/data-processing/reference-indexing).
 
-To get the references in place we will create a [symbolic link](https://linuxize.com/post/how-to-create-symbolic-links-in-linux-using-the-ln-command/).
+<br>
 
-To create a symbolic link we will first make a directory to house the data. 
+To get the references in place we will create a [symbolic link](https://linuxize.com/post/how-to-create-symbolic-links-in-linux-using-the-ln-command/) in a `references` directory located in out `projects` space.
+
 ```sh
 mkdir -p /projects/$USER/references/canine/
 cd /projects/$USER/references/canine/
 ```
 
-While in the directory we will create a link to a directory in my `scratch` space.  
-
 <br>
 
-Three different commands are provided, so use the one for the reference you wish to use.
+Three different commands are provided to link up a reference, so use the one for the genome you wish to use for alignment.
 
 <details>
 	<summary>canFam3.1</summary>
@@ -157,7 +154,7 @@ reference=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_g
 <details>
   <summary>ROS</summary>
 
-Need to add :)
+Should add, but no one wants to use ROS ;)
  
 </details>
 
@@ -193,14 +190,17 @@ ROS
 
 
 <details>
-  <summary>Bonus: click for instructions to pull down required files and generate a genomic index</summary>
+  <summary>Bonus: Click for instructions to pull down required files and generate a genomic index</summary>
 
 <br>
 
 Navigate to your references directory with `cd /projects/$USER/references/canine/`. Then use the command below to pull down the canine genome. If you are interested in a different genome you can pull down any genome using a similar command, you just need to modify the path according to the ensembl ftp webpage.
 
-Note: when navigating the ensembl ftp website the ftp url will likely lack the word “ensembl” – be sure to add it before “pub” (added to cmd below)
-#### Get the reference files:
+Note: when navigating the ensembl ftp website the ftp url will likely lack the word “ensembl” – be sure to add it before “pub” (added to cmd below)  
+
+<br>
+
+Download the reference files from ensembl:
 ```sh
 #don't forget the "." at the end of the command!
 rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-104/fasta/canis_lupus_familiaris/dna/*.dna.toplevel*.fa.gz .
@@ -209,7 +209,7 @@ Questions? Here is a link to the [ensembl ftp help page](http://ensembl.org/info
 
 <br>
 
-#### Ensure files came down correctly:
+Ensure files came down correctly:
 Whenever you retrieve data from an outside source it is always a good idea to check that the data was not altered during transfer.
 
 The way to do this is to check the hash, a 128-bit value that is unique to each file. The value on the ensembl ftp site should be in a file called CHECKSUM, so we will retrevie this file then cross reference the hash with the value of the downloaded file. If a file was altered in any way the hash will change, making it so you can confirm that your files came through uncorrupted. The following code walks you through the process. NOTE: Ensembl uses unix `sum` command, not `md5sum` to calculate the hash, so you have to do the same to verify the file did not get corrupted in transit.
@@ -227,24 +227,24 @@ If they do not match you should delete the file you initially pulled down and re
 
 <br>
 
-#### Unzip the genome file:
+Unzip the genome file:
 ```sh		
 gunzip *.dna.toplevel*.fa.gz
 ```
 
 <br>
 
-## Download and prepare the GTF files:
+#### Download and prepare the GTF files:
 Explore the [ensembl ftp website](https://uswest.ensembl.org/info/data/ftp/index.html) to find the annotation (GTF) file you need.  
 
-#### Pull the GTF from ensembl:
+Download the GTF from ensembl:
 ```sh
 rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-104/gtf/canis_lupus_familiaris/*  .
 ```
 
 <br>
 
-#### Check sums:
+Check sums to ensure they were not corrupted in transit:
 ```sh
 grep "Canis_lupus_familiaris.CanFam3.1.104.gtf.gz" CHECKSUMS
 # output: $ 61947 17598 Canis_lupus_familiaris.CanFam3.1.104.gtf.gz
@@ -255,7 +255,7 @@ sum Canis_lupus_familiaris.CanFam3.1.104.gtf.gz
 
 <br>
 
-#### Prepare the GTF file:
+Unzip the GTF file:
 ```sh
 gunzip Canis_lupus_familiaris.CanFam3.1.104.gtf.gz
 # rm *.gtf.gz #uncomment and run if you want to remove unnecessary files
@@ -264,7 +264,7 @@ gunzip Canis_lupus_familiaris.CanFam3.1.104.gtf.gz
 <br>
 
 #### Filter the GTF file with cellranger mkgtf:
-Create a bash script called “mkgtf.sh” in your `/references/canine/` directory:
+Create a bash script called “mkgtf.sh” in your `/projects/references/canine/` directory:
 ```sh
 touch mkgtf.sh
 ```
@@ -289,7 +289,7 @@ grep -oP 'gene_biotype \K\S+' *.gtf | cut -d"\"" -f2 | sort -u
 #protein_coding
 ```
 
-If it turns out all the biotypes are ones that you want included (as is the case above) then this step really isn't necessary, but no harm in running it.
+If it turns out all the biotypes are ones that you want included (as is the case above) then this step really isn't necessary, but no harm in running it either.
 
 <br>
 
@@ -299,13 +299,13 @@ bash mkgtf.sh > mkgtf.log 2>&1 &
 ```
 For reference, the `&` on end of the command makes it so the script runs in the background; check progress with cmd: `jobs -l` (that’s a lowercase L)
 		
-The output will be a filtered gtf file: `*_FILTERED.gtf`. 
+The output should be a filtered gtf file: `*_FILTERED.gtf`. 
 
 <br>
 
-## Convert the gtf file and genome to Cell Ranger reference file
+### Convert the gtf file and genome to Cell Ranger reference file
 
-#### Create the bash and sbatch scripts in your `/references/canine/` directory:
+Create the sbatch script in your /projects/references/canine/ directory:
 ```sh
 touch cute_cellrngr_mkref.sbatch
 ```
@@ -313,7 +313,7 @@ Copy the contents of [cute_cellrngr_mkref.sbatch](./cute_cellrngr_mkref.sbatch) 
 
 <br>
 
-#### Once the files are in place submit a SLURM job using the following cmd: 
+Once the files are in place submit a SLURM job using the following command: 
 ```sh
 sbatch cute_cellrngr_mkref.sbatch
 ```	
@@ -321,18 +321,18 @@ Should be completed in under 1 hour.
 
 <br>
 
-#### You can check progress with this cmd: 
+You can check progress with this cmd: 
 ```sh
 squeue -u $USER
 ```
 A few notes on cellranger mkref:  
 First, here is a link to the [10x mkref documentation](https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/advanced/references) I recommend looking it over to ensure you understand the process.  
 
-Second, gtf annotation files contain a fair amount of information in them, but the default settings in cellranger will only look for annotations associated with the feature type of `exon` and ignore all others. In the context of the 10x platform and short read sequencing it is imporant to note there is a strong 3' bias in read mapping, so you may find that you want to include reads that map to `three_prime_utr` (3' untranslated regions). It is possible to modify the gtf file to convert all `three_prime_utr` data points to `exon`. I am currently evaluating this for see if it enhances alignment & downstream analysis.  
+Second, gtf annotation files contain a fair amount of information in them, but the default settings in cellranger will only look for annotations associated with the feature type of `exon` and ignore all others. In the context of the 10x platform and short read sequencing it is imporant to note there is a strong 3' bias in read mapping, so you may find that you want to include reads that map to `three_prime_utr` (3' untranslated regions). It is possible to modify the gtf file to convert all `three_prime_utr` data points to `exon`, however my brief testing has revealed this has a profoundly negative impact on the alignment quality.
 
-Third, there are a few tool kits that will extend annoations in the 3' direction to increase alignment. The tool I have used is End Sequencing Analysis Toolkit (ESAT), but I am not a huge fan of this tool.  
+Third, there are a few tool kits that will extend annoations in the 3' direction to increase alignment. The tool I have used is [End Sequencing Analysis Toolkit](https://genome.cshlp.org/content/26/10/1397.full.html) (ESAT), but I am not a huge fan of this tool and I do not think this step is necessary.  
 
-If you're curious about how strong the 3' bias is, I recommend looking at metagene plots ([code provided](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/analysisCode/metaGenePlot.md), but underdevelopment/abandoned) to determine how many reads are affected by short 3' utr annotations. From there you can decide how you want to handle this.
+If you're curious about how strong the 3' bias is, I recommend looking at metagene plots ([code provided](https://github.com/dyammons/K9-PBMC-scRNAseq/blob/main/analysisCode/metaGenePlot.md), but the code is underdeveloped/abandoned) to determine how many reads are affected by short 3' utr annotations. From there you can decide if you want to take additional steps to handle the 3' bias.
 
 #### You should have a reference when the job finishes!
 
@@ -341,23 +341,33 @@ If you're curious about how strong the 3' bias is, I recommend looking at metage
 <br>
 
 ## Get raw data in place
-From here on out you should be working in your scratch space. 
-#### If you are not already in your scratch space you can navigate there with:
+From here on out you should be working in your `scratch` space.  
+If you are not already in your scratch space you can navigate there with:
 ```sh
 cd /scratch/alpine/$USER
 ```
-#### Let's make some directories for organization:
+
+<br>
+
+Next, let's make some directories for organization:
 ```sh
 mkdir -p ./project_01/02_scripts/
 cd project_01
 ```
-The process of getting your raw data onto the server will vary based on where your data is stored. Regardless you will want to put it in your 01_input directory in your scratch space. You should put each sample in its own sub directory within `01_input`.
 
-For today, you have the option of creating a symbolic link or pointing directly to the `.fastq` files in my `scratch` space.
+<br>
+
+Now we are ready to get raw data into place. For today, we will be creating a symbolic link to the `.fastq` files in my `scratch` space.
+
+It is worth noting, that in real life application the process of getting your raw data onto the server will vary based on where your data is stored. There are several mechanisms to get your data onto the server, but I tend to use an `rsync` command or [Globus](https://app.globus.org/file-manager). Regardless of transfer method you will want to put it in your 01_input directory in your scratch space with each sample in its own subdirectory within `01_input`.
+
+<br>
 
 <details open>
   <summary>Canine PBMC data</summary>
-	
+
+<br>
+
 ```sh
 ln -sf /scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/ 01_input
 ```
@@ -367,7 +377,9 @@ ln -sf /scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/ 01_input
 
 <details>
   <summary>Canine nasal lavage data (LC and TL only)</summary>
-	
+
+<br>
+
 ```sh
 ln -sf /scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/ 01_input
 ```
@@ -412,12 +424,14 @@ input_dir=/scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/
 Useful command to move (pull or push) data:
 ```sh
 rsync -avzP -e 'ssh -p 22' <source path> <user name with "\" before the "@">@login.rc.colorado.edu:/scratch/alpine/<user name>/project_01/01_input/
+
+#example where I am moving a .sif file onto my scratch space
+#rsync -auzP -e 'ssh -p 22' dyammons_r-env_r.sif dyammons\@colostate.edu@login.rc.colorado.edu:/scratch/alpine/dyammons@colostate.edu
 ```
+
 The above command will send all the files in the directory you are located in on a local terminal to the server, so just navigate to the directory containing your `.fastq` files then run the command. 
 
-If you do not want to use an `rsync` command I highly recommend using [Globus](https://app.globus.org/file-manager). Globus is a much better option than FileZilla as Globus will check file hashes and repeatedly try if transfer initially fails - this is not the case with FileZilla.
-
-The file name(s) should looks something like this: \<sample name\>_S7_L004_R1_001.fastq.gz
+Again, if you do not want to use an `rsync` command I highly recommend using [Globus](https://app.globus.org/file-manager). Globus is a much better option than FileZilla as Globus will check file hashes and repeatedly try if transfer initially fails - this is not the case with FileZilla.
 
 </details>
 
@@ -426,15 +440,14 @@ The file name(s) should looks something like this: \<sample name\>_S7_L004_R1_00
 ## Run Cell Ranger counts
 Now that you have everything in place running the final step _should_ be a breeze!
 
-Complete the following step in your `02_scripts` directory. 
-
+Navigate to the `02_scripts` directory:
 ```sh
 cd /scratch/alpine/$USER/project_01/02_scripts/
 ```
 
 <br>
 
-#### Create the sbatch scripts to run cellranger counts:
+Create the sbatch script to run `cellranger count`:
 ```sh
 touch cute_cellrngr_cnts.sbatch
 ```
@@ -445,22 +458,26 @@ Now, let's print out the paths that we need to use for customization of the `SBA
 echo $reference
 ```
 
-Copy the contents of [cute_cellrngr_cnts.sbatch](./cute_cellrngr_cnts.sbatch) to the file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good we will submit a test job to ensure we have a fair chance of getting the job to run first try. 
+Copy the contents of [cute_cellrngr_cnts.sbatch](./cute_cellrngr_cnts.sbatch) to the file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good we will submit a test job to ensure we have a fair chance of getting the job to run first try.
 
-
+Submit the job with this command...
 ```sh
 sbatch cute_cellrngr_cnts.sbatch
 ```
 
-You can check the progress of the job by running.
+and check the progress of the job by running:
 ```sh
 squeue -u $USER
 ```
+
+<br> 
+
 Now that we know the script at least has the correct paths, let's update the file for a real run.
 
 <details>
   <summary>Show real job script</summary>
 
+Here is the script we will be using for the run. Carefully copy over the contents that are missing from the test `.sbatch` file.
 ```sh
 #!/usr/bin/env bash
 
@@ -521,11 +538,18 @@ time eval $cmd1
 
 </details>
 
+<br> 
+
 Each job should take 2-24 hours to run and will create several files for downstream use.
 
-If you do not request enough time for the job (default for the code we are using is 6 hours) you can easily resume. All you have to do is go into the cellranger counts output folder for the sample that did not finish and delete the "_lock" file.
+<br>
 
-Once the file is deleted you will be able to resume the run. Before submitting the job again you will want to change the `StringArray` variable to store the samples that need to be resumed.  
+<details>
+  <summary>Click me if your job times out</summary>
+
+If you do not request enough time for the job (default for the code we are using is 6 hours) you can fairly easily resume the run. All you have to do is go into the `cellranger count` output folder for the sample that did not finish and delete the `_lock` file.
+
+Once that file is deleted you will be able to resume the run. Before submitting the job again you will want to change the `StringArray` variable to store the sample(s) that need to be resumed.  
 (NOTE the changes in `#` useage)
 ```sh
 ##### Load in sample names to run #####
@@ -535,5 +559,15 @@ Once the file is deleted you will be able to resume the run. Before submitting t
 #if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
 declare -a StringArray=("sample1" "sample2" "sample3") #replace with sample names
 ```
+
+You also will have to change the `SBATCH` directive `array` to match the number of sample you are running.
+```sh
+#if three need to be be resumed you would change as follows
+#SBATCH --array=0-2
+```
+
+Copy and paste the above changes to the `.sbatch` file, then you can resume the run with `sbatch cute_cellrngr_cnts.sbatch`.
+
+</details>
 
 ## Congratulations! You have completed the alignment of your data to the genome and can now get a sense of what the data look like.
