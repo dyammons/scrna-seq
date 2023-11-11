@@ -160,7 +160,7 @@ Should add, but no one wants to use ROS ;)
 
 <br>
 
-Once the file is properly linked we should now be able to see it, so let's check.
+Once the files are properly linked we should now be able to see it, so let's check.
 ```sh
 ls
 #canine_ref_genome_cellranger-7.1.0_canFam3.1_base #should be a teal color
