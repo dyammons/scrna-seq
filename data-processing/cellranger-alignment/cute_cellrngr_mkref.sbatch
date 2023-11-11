@@ -16,11 +16,13 @@
 
 ######### Instructions ###########
 
+#clear the node of preloaded software and load cellranger
 module purge
 module load cellranger
+cellranger version
+
 
 #make reference genome
-
 ### NOTE: ###
 # --genome is output directory (so change if you want a different name)
 # --fasta is the path to whole genome fasta file
