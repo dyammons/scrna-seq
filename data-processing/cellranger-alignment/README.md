@@ -385,7 +385,9 @@ ln -sf /scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/ 01_input
 ```
 
 </details>
-  
+
+<br>
+
 Once the files are properly linked we should now be able to see them, so let's check.
 ```sh
 ls ./01_input/
