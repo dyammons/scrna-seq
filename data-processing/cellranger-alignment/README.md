@@ -454,13 +454,15 @@ Create the sbatch script to run `cellranger count`:
 touch cute_cellrngr_cnts.sbatch
 ```
 
-Now, let's print out the paths that we need to use for customization of the `SBATCH` file
+<br> 
+
+Print out the path to the reference index that we stashed ealier so we can ensure that we set the correct path in the `SBATCH` file:
 ```sh
 #path to reference directory
 echo $reference
 ```
 
-Copy the contents of [cute_cellrngr_cnts.sbatch](./cute_cellrngr_cnts.sbatch) to the file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good we will submit a test job to ensure we have a fair chance of getting the job to run first try.
+Copy the contents of [cute_cellrngr_cnts.sbatch](./cute_cellrngr_cnts.sbatch) to the newly created file then customize the user preferences section to make sure all the paths/options match the needs of your run. Once everything looks good we will submit a test job to ensure we have a fair chance of getting the job to run first try.
 
 Submit the job with this command...
 ```sh
@@ -552,7 +554,7 @@ Each job should take 2-24 hours to run and will create several files for downstr
 If you do not request enough time for the job (default for the code we are using is 6 hours) you can fairly easily resume the run. All you have to do is go into the `cellranger count` output folder for the sample that did not finish and delete the `_lock` file.
 
 Once that file is deleted you will be able to resume the run. Before submitting the job again you will want to change the `StringArray` variable to store the sample(s) that need to be resumed.  
-(NOTE the changes in `#` useage)
+(NOTE the changes in `#` useage in the code block below)
 ```sh
 ##### Load in sample names to run #####
 #samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
@@ -568,7 +570,7 @@ You also will have to change the `SBATCH` directive `array` to match the number 
 #SBATCH --array=0-2
 ```
 
-Copy and paste the above changes to the `.sbatch` file, then you can resume the run with `sbatch cute_cellrngr_cnts.sbatch`.
+Make the above changes to the `.sbatch` file, then resume the run with `sbatch cute_cellrngr_cnts.sbatch`.
 
 </details>
 
