@@ -13,26 +13,46 @@
 
 #SBATCH --array=0-7 #set this to 0-(# of samples - 1), so the example is for 8 samples -- if you are only running 1 sample, then you can set it to 0-0
 
-##### Load cellranger #####
+
+
+##### USER SETTINGS #####
+
+#specify path to reference
+ref_pwd=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base
+
+##### END SETTINGS #####
+
+
+
+##### BEGIN CODE #####
+
+### Load cellranger
 module purge
 module load cellranger
 cellranger --version
 
-##### Load in sample names to run #####
+### Load in sample names to run
 samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
 declare -a StringArray=($samples)
 
 #if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
 #declare -a StringArray=("sample1" "sample2" "sample3")
 
-##### excute cellranger count #####
+### Excute cellranger count
 sampleName=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fastq.gz" | head -n1 | awk -F "_S" '{print $1}')
 
 cmd1="cellranger count --id=${StringArray[${SLURM_ARRAY_TASK_ID}]} \
                        --fastqs=../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ \
                        --sample=${sampleName} \
-                       --transcriptome=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base \
+                       --transcriptome=${ref_pwd} \
                        --expect-cells=5000" ### MODIFY as needed
 echo $cmd1
 #echo -e "\t$ ${cmd1}"
 #time eval $cmd1
+
+##### END CODE #####
+
+
+
+
+
