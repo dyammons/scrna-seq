@@ -31,7 +31,7 @@ sampleName=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fast
 cmd1="cellranger count --id=${StringArray[${SLURM_ARRAY_TASK_ID}]} \
                        --fastqs=../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ \
                        --sample=${sampleName} \
-                       --transcriptome=/projects/$USER/references/K9_ref_genome \
+                       --transcriptome=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_gsd_UU_Cfam_GSD_1_0_110_base \
                        --expect-cells=5000" ### MODIFY as needed
 echo $cmd1
 #echo -e "\t$ ${cmd1}"
