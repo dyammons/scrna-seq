@@ -1,20 +1,20 @@
 ## kallisto pipeline installation and useage on Alpine for scRNA-seq
 
-<br>
-
 ### Softare installation
 Rather than install kallisto manually, as done for [bulk analysis]() we will be using a wrapper package called `kb-python` which contains `kallisto` and `bustools`. These are the two tools that are needed to go from raw data to count matricies. 
 
-\[Recommended\] You _should_ be able to create a new `env` pretty quickly with the following commands. I have not had success building the `env` using this approach and resorted to using `pip`. Let's call the new environment `kb-tools`.
+You can install the software using a `pip` command inside a relavent `conda env` that has `python` and `pip` installed (check out the [source](https://pachterlab.github.io/kallistobustools/) if you have problems with install or usage). The code chunck below will create a new conda env called `kb-tools` and install the necessary software.
 ```sh
+#create the empty env
 conda create -n kb-tools
-conda activate kb-tools
-conda install -c bioconda kb-python
-```
 
-\[Less ideal\] You can install using a `pip` command inside a relavent `conda env` (check out the [source](https://pachterlab.github.io/kallistobustools/) if you have problems with install or usage).
-```sh
-conda activate <xxx>
+#enter the env
+conda activate kb-tools
+
+#install python (which includes pip)
+conda install -c anaconda python=3.8
+
+#install kb-python
 pip install kb-python
 ```
 <br>
@@ -44,11 +44,15 @@ kb ref -i canFam3.1.kb-python.idx -g transcripts_to_genes.txt -f1 Canis_lupus_fa
 <br>
 
 ### Pseudoalign your samples
+Below is an example command and expected output for one sample. For batch job submission check out the [cute-kallisto_sc-kb-cnt.sbatch](./cute-kallisto_sc-kb-cnt.sbatch) file which should contain all the information you need to run your samples.
 
-Looks like the below block of code will work, convert to job script and run with 8 cores
 ```sh
-kb count -i /projects/$USER/references/canine/canFam3.1.kb-python.idx -g /projects/dyammons@colostate.edu/references/canine/transcripts_to_genes.txt -x 10xv3 \
---h5ad -t 1 --tmp /scratch/alpine/dyammons@colostate.edu/tmp/tmp/ \
+kb count -i /projects/$USER/references/canine/canFam3.1.kb-python.idx \
+-g /projects/dyammons@colostate.edu/references/canine/transcripts_to_genes.txt \
+-x 10xv3 \
+--h5ad \
+-t 1 \
+--tmp /scratch/alpine/dyammons@colostate.edu/tmp/tmp/ \
 -o ../03_output/ \
 /scratch/alpine/dyammons@colostate.edu/proj03_k9_duod/01_input/duod_norm_1/duod_norm_1_CKDL220032323-1A_HMLG2DSX5_S6_L002_R1_001.fastq.gz /scratch/alpine/dyammons@colostate.edu/proj03_k9_duod/01_input/duod_norm_1/duod_norm_1_CKDL220032323-1A_HMLG2DSX5_S6_L002_R2_001.fastq.gz
 
@@ -65,7 +69,6 @@ kb count -i /projects/$USER/references/canine/canFam3.1.kb-python.idx -g /projec
 #[2023-11-06 18:58:48,060]    INFO [count] Reading matrix ../03_output/2023-11-06_kb-count_output/duod_norm_1/counts_unfiltered/cells_x_genes.mtx
 #[2023-11-06 18:59:02,647] WARNING [count] 4432 gene IDs do not have corresponding gene names. These genes will use their gene IDs instead.
 #[2023-11-06 18:59:02,651]    INFO [count] Writing matrix to h5ad ../03_output/2023-11-06_kb-count_output/duod_norm_1/counts_unfiltered/adata.h5ad
-
 ```
 
 <br>
