@@ -162,7 +162,7 @@ cellranger mkgtf canROS.gtf canROS_FILTERED.gtf \
 ### mkref script
 
 ```sh
-#add a shebang here to make executable
+#!/usr/bin/env bash
 
 #SBATCH --job-name=cr_mkref
 
