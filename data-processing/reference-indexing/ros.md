@@ -53,6 +53,56 @@ Check for chromosomes included in the FASTA
 ```sh
 grep '^>' *.fa | head -n50
 ```
+<details>
+  <summary>Show output</summary>
+
+<br> 
+
+```sh
+# >1 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:1:1:123313939:1 REF
+# >2 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:2:1:86187811:1 REF
+# >3 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:3:1:92870237:1 REF
+# >4 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:4:1:89007665:1 REF
+# >5 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:5:1:89573405:1 REF
+# >6 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:6:1:78268176:1 REF
+# >7 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:7:1:81039452:1 REF
+# >8 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:8:1:75260524:1 REF
+# >9 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:9:1:62002293:1 REF
+# >10 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:10:1:70361000:1 REF
+# >11 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:11:1:75541347:1 REF
+# >12 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:12:1:73497294:1 REF
+# >13 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:13:1:64037277:1 REF
+# >14 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:14:1:61043064:1 REF
+# >15 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:15:1:65200600:1 REF
+# >16 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:16:1:62021213:1 REF
+# >17 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:17:1:65471548:1 REF
+# >18 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:18:1:56883407:1 REF
+# >19 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:19:1:55265241:1 REF
+# >20 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:20:1:58896461:1 REF
+# >21 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:21:1:52140716:1 REF
+# >22 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:22:1:62106979:1 REF
+# >23 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:23:1:53282923:1 REF
+# >24 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:24:1:48838997:1 REF
+# >25 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:25:1:51941001:1 REF
+# >26 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:26:1:40674351:1 REF
+# >27 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:27:1:46248802:1 REF
+# >28 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:28:1:41862212:1 REF
+# >29 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:29:1:42049852:1 REF
+# >30 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:30:1:40414903:1 REF
+# >31 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:31:1:39518933:1 REF
+# >32 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:32:1:39023732:1 REF
+# >33 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:33:1:31649084:1 REF
+# >34 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:34:1:42263871:1 REF
+# >35 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:35:1:26942268:1 REF
+# >36 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:36:1:31065185:1 REF
+# >37 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:37:1:30932408:1 REF
+# >38 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:38:1:24102048:1 REF
+# >X dna:primary_assembly primary_assembly:ROS_Cfam_1.0:X:1:127069619:1 REF
+# >Y dna:primary_assembly primary_assembly:ROS_Cfam_1.0:Y:1:3937623:1 REF
+# >JAAUVH010000248.1 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:JAAUVH010000248.1:1:3974031:1 REF
+```
+
+</details>
 
 From that we can see that the MT and Y chomosomes are not present. This can be confirmed with:
 ```sh
