@@ -3,7 +3,7 @@
 #SBATCH --job-name=kal_cnt
 #SBATCH --ntasks=8       # modify this number to reflect how many cores you want to use (up to 64)
 #SBATCH --nodes=1         # this script is designed to run on one node
-#SBATCH --time=01:00:00   # set time; default = 4 hours
+#SBATCH --time=00:40:00   # set time; default = 4 hours
 
 #SBATCH --partition=amilan  # modify this to reflect which queue you want to use. Either 'shas' or 'shas-testing'
 #SBATCH --qos=normal      # modify this to reflect which queue you want to use. Options are 'normal' and 'testing'
