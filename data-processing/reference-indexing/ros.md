@@ -22,6 +22,9 @@ grep -oP 'gene_biotype \K\S+' *.gtf | cut -d"\"" -f2 | sort -u
 
 <details>
   <summary>Show output</summary>
+
+<br> 
+
 ```sh
 ###output
 # IG_C_gene
