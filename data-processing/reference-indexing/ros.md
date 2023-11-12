@@ -18,7 +18,11 @@ gunzip Canis_lupus_familiaris.ROS_Cfam_1.0.dna.toplevel.fa.gz
 Check for viable biotype options
 ```sh
 grep -oP 'gene_biotype \K\S+' *.gtf | cut -d"\"" -f2 | sort -u
+```
 
+<details>
+  <summary>Show output</summary>
+```sh
 ###output
 # IG_C_gene
 # IG_V_gene
@@ -39,6 +43,8 @@ grep -oP 'gene_biotype \K\S+' *.gtf | cut -d"\"" -f2 | sort -u
 # snoRNA
 # vault_RNA
 ```
+</details>
+
 
 Check for chromosomes included in the FASTA
 ```sh
