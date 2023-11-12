@@ -100,6 +100,7 @@ grep '^>' *.fa | head -n50
 # >X dna:primary_assembly primary_assembly:ROS_Cfam_1.0:X:1:127069619:1 REF
 # >Y dna:primary_assembly primary_assembly:ROS_Cfam_1.0:Y:1:3937623:1 REF
 # >JAAUVH010000248.1 dna:primary_assembly primary_assembly:ROS_Cfam_1.0:JAAUVH010000248.1:1:3974031:1 REF
+# ...
 ```
 
 </details>
