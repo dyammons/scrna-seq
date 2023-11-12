@@ -68,8 +68,18 @@ kb count -i /projects/$USER/references/canine/canFam3.1.kb-python.idx -g /projec
 
 ```
 
-### Additional notes that ended up failing to get the task done (this section is here so we don't try it again later in life)
-You will need additional software to generate the transcript-to-gene file, do this:
+<br>
+
+<details>
+  <summary>Additional notes that ended up failing to get the task done</summary> 
+
+<br>
+
+This section is here so we don't try it again later in life.  
+I initally thought that the tr2g file had to be provided as input, but it is actually an output of the `kb ref` command. 
+<br>
+
+You will need additional software to generate the transcript-to-gene file, do this (this is an example of installing software from source):
 ```sh
 module load cmake/3.27.7
 cd /projects/$USER/software/
@@ -97,9 +107,10 @@ tr2g_fa <- tr2g_fasta(file = fasta, write_tr2g = FALSE, save_filtered = FALSE)
 head(tr2g_fa)
 ```
 
-The above didn't work, so manually extrat data with:
+The above didn't work, so you can manually extract data with the following command to create a tr2g file (note: this is not required as the `kb ref` command will out put this file):
 ```sh
 grep ">" Canis_lupus_familiaris.CanFam3.1.cdna.all.fa | cut -d" " -f1,4,5,6,7 | sed 's/ *:/ /g' | cut -d" " -f1,3,7,9 | cut -c 2- | sed 's/ /\t/g' > tr2g_k9.tmp
 echo -e "transcript\tgene\tgene_biotype\tgene_name" | cat - tr2g_k9.tmp > tr2g_k9.tsv
 rm *.tmp
 ```
+</details>
