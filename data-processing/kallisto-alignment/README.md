@@ -5,7 +5,7 @@
 ### Softare installation
 Rather than install kallisto manually, as done for [bulk analysis]() we will be using a wrapper package called `kb-python` which contains `kallisto` and `bustools`. These are the two tools that are needed to go from raw data to count matricies. 
 
-\[Recommended\] You can create a new `env` pretty quickly with the following commands. Let's call the new environment `kb-tools`.
+\[Recommended\] You _should_ be able to create a new `env` pretty quickly with the following commands. I have not had success building the `env` using this approach and resorted to using `pip`. Let's call the new environment `kb-tools`.
 ```sh
 conda create -n kb-tools
 conda activate kb-tools
@@ -22,7 +22,7 @@ pip install kb-python
 ### Index generation
 I would encourage you to build the index at `/projects/$USER/references/canine/` (assuming you are woking with the canine genome).
 
-The index for `kb` is unique from traditional aligners (STAR, HISAT2, etc.) in that it uses the cDNA fasta file (transcriptome) instead of the whole genome fasta file. Therefore, you will want to find the cooresponding `.cdna.all.fa.gz` file for the reference of interest. The curl command below will retreive the file required to index the 104 release of CanFam3.1 from ensembl.
+The index for `kallisto` is unique from traditional aligners (STAR, HISAT2, etc.) in that it uses the cDNA fasta file (transcriptome) instead of the whole genome fasta file. Therefore, you will want to find the cooresponding `.cdna.all.fa.gz` file for the reference of interest. The curl command below will retreive the file required to index the 104 release of CanFam3.1 from ensembl.
 
 ```sh
 curl -O ftp://ftp.ensembl.org/pub/release-104/fasta/canis_lupus_familiaris/cdna/Canis_lupus_familiaris.CanFam3.1.cdna.all.fa.gz
