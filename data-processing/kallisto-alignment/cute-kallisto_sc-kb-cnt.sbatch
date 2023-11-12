@@ -45,7 +45,7 @@ declare -a StringArray=("duod_norm_2" "duod_norm_3")
 #Ensure the node is clear of pre-loaded software & load conda env with kb-python
 module purge
 module load anaconda
-conda activate dsci512 #change the env to match the env with the required software installed
+conda activate kb-tools #change the env to match the env with the required software installed
 
 ####### END USER PREFERENCES #######
 
