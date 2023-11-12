@@ -138,7 +138,7 @@ cat Canis_lupus_familiaris.ROS_Cfam_1.0.dna.toplevel.fa Canis_lupus_familiaris.C
 
 ### mkgtf script
 
-
+This is a computationally simple task, so can copy and paste the code below into the terminal directly if on a compile or compute node.
 ```sh
 
 module load cellranger
