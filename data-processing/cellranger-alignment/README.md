@@ -51,6 +51,26 @@ These sessions are designed for light computing, compiling, and optimizing scrip
 
 <br>
 
+<details>
+  <summary>Click me for an overview of Alpine file systems.</summary>  
+
+<br>
+
+```sh
+#2GB permanent storage where we start out
+/home/$USER/
+
+#250GB permanent storage -- where we will put reference
+/projects/$USER/
+
+#10TB temporary storage (deleted every 90 days) -- where raw data goes
+/scratch/alpine/$USER/
+```
+
+</details>
+
+<br>
+
 ## Install Cell Ranger (Now optional)
 
 `Cell Ranger` is now installed in a software module on Alpine, so there is no need to install the software manually. If you want to use an older version then you may have to complete a manual install following the instructions below. Otherwise, you can simply load the software by running the following:
