@@ -1,5 +1,6 @@
 ## Instructions for new canine reference build
 
+### Get and prepare files
 
 Pull down the files from ensembl (11/09/2023 @ 8:27 AM).
 ```sh
@@ -125,7 +126,7 @@ grep "^MT" ../canFam31/Canis_lupus_familiaris.CanFam3.1.104.gtf > canFam_mt_appe
 cat Canis_lupus_familiaris.ROS_Cfam_1.0.110.gtf canFam_mt_append.gtf > canROS.gtf
 ```
 
-#Pull down the MT data fresh (11.12.2023 @ 8:50 AM)
+Pull down the MT data fresh (11.12.2023 @ 8:50 AM)
 ```sh
 rsync -avzP rsync://ftp.ensembl.org/ensembl/pub/release-104/fasta/canis_lupus_familiaris/dna/Canis_lupus_familiaris.CanFam3.1.dna.chromosome.MT.fa.gz .
 
