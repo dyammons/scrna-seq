@@ -372,6 +372,40 @@ cd /scratch/alpine/$USER
 
 <br>
 
+We will be using a pretty standard directory structure which uses the main directories `project_01`, `01_input`, and `02_scripts`.
+
+<details>
+<summary>Directory tree</summary>
+
+Personal structure
+```sh
+project_01/
+├── 01_input -> /scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/
+└── 02_scripts
+    └── cute_cellrngr_cnts.sbatch
+```
+
+Structure of symbolic link input directory
+```sh
+/scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/
+├── Healthy_PBMC_2
+│   ├── Healthy_PBMC_2_S7_L004_R1_001.fastq.gz
+│   └── Healthy_PBMC_2_S7_L004_R2_001.fastq.gz
+├── ...
+└── k9_PBMC_OSA_3
+    ├── MD5.txt
+    ├── k9_PBMC_OSA_3_CKDL210024467-1a-SI_TT_A2_HVWVGDSX2_S2_L002_I1_001.fastq.gz
+    ├── k9_PBMC_OSA_3_CKDL210024467-1a-SI_TT_A2_HVWVGDSX2_S2_L002_I2_001.fastq.gz
+    ├── k9_PBMC_OSA_3_CKDL210024467-1a-SI_TT_A2_HVWVGDSX2_S2_L002_R1_001.fastq.gz
+    └── k9_PBMC_OSA_3_CKDL210024467-1a-SI_TT_A2_HVWVGDSX2_S2_L002_R2_001.fastq.gz
+
+6 directories, 23 files
+```
+ 
+</details>
+
+<br>
+
 Next, let's make some directories for organization:
 ```sh
 mkdir -p ./project_01/02_scripts/
