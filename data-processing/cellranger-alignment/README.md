@@ -174,8 +174,11 @@ reference=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_g
 <details>
   <summary>ROS</summary>
 
-Should add, but no one wants to use ROS ;)
- 
+```sh
+ln -sf /scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/ros/canine_ref_genome_cellranger_7_1_0_ROS_Cfam_1_0_110_base/ canine_ref_genome_cellranger_7_1_0_ROS_Cfam_1_0_110_base
+reference=/scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/ros/canine_ref_genome_cellranger_7_1_0_ROS_Cfam_1_0_110_base
+```
+
 </details>
 
 <br>
