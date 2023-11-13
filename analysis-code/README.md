@@ -1,4 +1,7 @@
 ### These instructions are designed to help you create a conda envrionemnt to run the R based analysis code on the SUMMIT server.
+
+NOTE: while `conda` is convenient to use there are some problems with reproducibility and portability for software in the environment. So, if possible, the use of a `Singularity` container is preferred. Additional information will be provided in time. - DA 11.13.2023
+
 #### First, create a .condarc file if there is not already one in your home directory
 ```sh
 nano .condarc
