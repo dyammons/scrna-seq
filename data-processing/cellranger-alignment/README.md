@@ -159,7 +159,7 @@ cd /projects/$USER/references/bovine/
 
 <br>
 
-Three different commands are provided to link up a reference, so use the one for the genome you wish to use for alignment.
+Four different commands are provided to link up a reference, so use the one for the genome you wish to use for alignment.
 
 <details>
 	<summary>canFam3.1</summary>
