@@ -3,7 +3,7 @@
 #SBATCH --job-name=cellrngr_cnt
 #SBATCH --nodes=1         # this script is designed to run on one node
 
-#SBATCH --partition=atesting  # modify this to reflect which queue you want to use. Either 'shas' or 'shas-testing'
+#SBATCH --partition=atesting  # modify this to reflect which queue you want to use. Either 'amilan' or 'atesting'
 #SBATCH --qos=testing      # modify this to reflect which queue you want to use. Options are 'normal' and 'testing'
 
 #SBATCH --mail-type=END   # Keep these two lines of code if you want an e-mail sent to you when it is complete.
