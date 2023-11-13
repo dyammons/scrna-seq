@@ -377,6 +377,8 @@ We will be using a pretty standard directory structure which uses the main direc
 <details>
 <summary>Directory tree</summary>
 
+<br>
+
 Personal structure
 ```sh
 project_01/
@@ -406,7 +408,7 @@ Structure of symbolic link input directory
 
 <br>
 
-Next, let's make some directories for organization:
+Next, let's make the directories:
 ```sh
 mkdir -p ./project_01/02_scripts/
 cd project_01
