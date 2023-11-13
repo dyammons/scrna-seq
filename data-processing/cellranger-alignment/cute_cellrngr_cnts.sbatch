@@ -2,6 +2,7 @@
 
 #SBATCH --job-name=cellrngr_cnt
 #SBATCH --nodes=1         # this script is designed to run on one node
+#SBATCH --time=00:05:00
 
 #SBATCH --partition=atesting  # modify this to reflect which queue you want to use. Either 'amilan' or 'atesting'
 #SBATCH --qos=testing      # modify this to reflect which queue you want to use. Options are 'normal' and 'testing'
