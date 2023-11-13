@@ -21,23 +21,26 @@
 #specify path to reference
 ref_pwd=/projects/dyammons@colostate.edu/references/canine/canine_ref_genome_cellranger_7_1_0_ROS_Cfam_1_0_110_base
 
+
+#specify sample names to run
+samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
+declare -a StringArray=($samples)
+
+#if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
+#declare -a StringArray=("sample1" "sample2" "sample3")
+
 ##### END SETTINGS #####
 
 
-
-##### BEGIN CODE #####
+##### SET ENV #####
 
 ### Load cellranger
 module purge
 module load cellranger
 cellranger --version
 
-### Load in sample names to run
-samples=$(ls -lh ../01_input/ | grep "^d" | awk '{print $9}')
-declare -a StringArray=($samples)
 
-#if you have extra dirs or only want to run select samples, then store the sample names in the StringArray variable
-#declare -a StringArray=("sample1" "sample2" "sample3")
+##### BEGIN CODE #####
 
 ### Excute cellranger count
 sampleName=$(ls ../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ | grep "fastq.gz" | head -n1 | awk -F "_S" '{print $1}')
@@ -53,8 +56,3 @@ echo -e "\t$ ${cmd1}"
 time eval $cmd1
 
 ##### END CODE #####
-
-
-
-
-
