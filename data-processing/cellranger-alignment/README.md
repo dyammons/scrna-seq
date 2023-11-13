@@ -488,6 +488,19 @@ ln -sf /scratch/alpine/dyammons@colostate.edu/proj08_bov_scrna/01_input/ 01_inpu
 
 <br>
 
+<details>
+  <summary>Symbolic link to canine bone marrow data (ER and AH only) </summary>
+
+<br>
+
+```sh
+ln -sf /scratch/alpine/dyammons@colostate.edu/proj10_k9_atlas/01_input/ 01_input
+```
+
+</details>
+
+<br>
+
 Once the files are properly linked we should now be able to see them, so let's check.
 ```sh
 ls ./01_input/
