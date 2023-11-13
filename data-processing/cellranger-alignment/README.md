@@ -372,7 +372,7 @@ cd /scratch/alpine/$USER
 
 <br>
 
-We will be using a pretty standard directory structure which uses the main directories `project_01`, `01_input`, and `02_scripts`.
+We will be using a pretty standard directory structure which uses the main directories `project_scrna_01`, `01_input`, and `02_scripts`.
 
 <details>
 <summary>Directory tree</summary>
@@ -381,7 +381,7 @@ We will be using a pretty standard directory structure which uses the main direc
 
 Personal structure
 ```sh
-project_01/
+project_scrna_01/
 ├── 01_input -> /scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/
 └── 02_scripts
     └── cute_cellrngr_cnts.sbatch
@@ -410,8 +410,8 @@ Structure of symbolic link input directory
 
 Next, let's make the directories:
 ```sh
-mkdir -p ./project_01/02_scripts/
-cd project_01
+mkdir -p ./project_scrna_01/02_scripts/
+cd project_scrna_01
 ```
 
 <br>
@@ -484,7 +484,7 @@ input_dir=/scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/
  
 Useful command to move (pull or push) data:
 ```sh
-rsync -avzP -e 'ssh -p 22' <source path> <user name with "\" before the "@">@login.rc.colorado.edu:/scratch/alpine/<user name>/project_01/01_input/
+rsync -avzP -e 'ssh -p 22' <source path> <user name with "\" before the "@">@login.rc.colorado.edu:/scratch/alpine/<user name>/project_scrna_01/01_input/
 
 #example where I am moving a .sif file onto my scratch space
 #rsync -auzP -e 'ssh -p 22' dyammons_r-env_r.sif dyammons\@colostate.edu@login.rc.colorado.edu:/scratch/alpine/dyammons@colostate.edu
@@ -503,7 +503,7 @@ Now that you have everything in place running the final step _should_ be a breez
 
 Navigate to the `02_scripts` directory:
 ```sh
-cd /scratch/alpine/$USER/project_01/02_scripts/
+cd /scratch/alpine/$USER/project_scrna_01/02_scripts/
 ```
 
 <br>
