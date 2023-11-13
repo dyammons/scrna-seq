@@ -28,7 +28,9 @@ The index for `kallisto` is unique from traditional aligners (STAR, HISAT2, etc.
 curl -O ftp://ftp.ensembl.org/pub/release-104/fasta/canis_lupus_familiaris/cdna/Canis_lupus_familiaris.CanFam3.1.cdna.all.fa.gz
 ```
 
-Once the file is retrieved simply run the following command to generate an indexed reference.
+In addition to the `.fa` file you will also need to pull down a `.gtf` file (which you may already have, so code not shown here).  
+
+Once the files are retrieved simply run the following command to generate an indexed reference.  
 NOTE: there is no need to submit a job if you are on a compile or compute node. This is a quick and relatively low resource command.
 
 ```sh
