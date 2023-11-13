@@ -648,7 +648,7 @@ cmd1="cellranger count --id=${StringArray[${SLURM_ARRAY_TASK_ID}]} \
                        --fastqs=../01_input/${StringArray[${SLURM_ARRAY_TASK_ID}]}/ \
                        --sample=${sampleName} \
                        --transcriptome=${ref_pwd} \
-                       --expect-cells=5000" ### MODIFY as needed
+                       --expect-cells=5000" ### some add --include-introns=false \
 echo $cmd1
 echo -e "\t$ ${cmd1}"
 time eval $cmd1
