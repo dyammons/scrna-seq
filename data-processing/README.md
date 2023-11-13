@@ -4,5 +4,5 @@ Currently full instructions are only avalible for `Cell Ranger`. `kallisto` inst
 Please visit the relevant subdirectory for additional instructions on installation and usage on Alpine. 
 
 #### Features to add:
-- [x] kallisto (in progress)
+- [x] kallisto
 - [ ] velocyto
