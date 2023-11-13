@@ -475,7 +475,7 @@ ln -sf /scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/ 01_input
 
 <br>
 
-<details open>
+<details>
   <summary>Symbolic link to bovine data (SR and GJ only) </summary>
 
 <br>
