@@ -504,10 +504,7 @@ ln -sf /scratch/alpine/dyammons@colostate.edu/proj10_k9_atlas/01_input/ 01_input
 Once the files are properly linked we should now be able to see them, so let's check.
 ```sh
 ls ./01_input/
-#Healthy_PBMC_2  OSA  OSA_PBMC_2  healthy_PBMC_4  healthy_pbmc_6  k9_PBMC_Healthy_3  k9_PBMC_OSA_3
-
-ls ./01_input/Healthy_PBMC_2/
-#Healthy_PBMC_2_S7_L004_R1_001.fastq.gz  Healthy_PBMC_2_S7_L004_R2_001.fastq.gz
+#healthy_pbmc_6  healthy_pbmc_7  healthy_pbmc_8  osa_pbmc_5  pbmc_tp1_pt1  pbmc_tp1_pt2
 
 ls ./01_input/healthy_pbmc_6/
 #MD5.txt
@@ -529,6 +526,17 @@ Canine nasal lavage
 ```sh
 input_dir=/scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/
 ```
+
+Bovine lavage
+```sh
+input_dir=/scratch/alpine/dyammons@colostate.edu/proj08_bov_scrna/01_input/
+```
+
+Canine bone marrow
+```sh
+input_dir=/scratch/alpine/dyammons@colostate.edu/proj10_k9_atlas/01_input/
+```
+
 </details>
 
 <details>
