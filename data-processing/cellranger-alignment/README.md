@@ -146,6 +146,17 @@ mkdir -p /projects/$USER/references/canine/
 cd /projects/$USER/references/canine/
 ```
 
+<details>
+	<summary>Bovine</summary>
+
+<br>
+ 
+```sh
+mkdir -p /projects/$USER/references/bovine/
+cd /projects/$USER/references/bovine/
+```
+</details>
+
 <br>
 
 Three different commands are provided to link up a reference, so use the one for the genome you wish to use for alignment.
@@ -183,6 +194,18 @@ reference=/projects/$USER/references/canine/canine_ref_genome_cellranger_7_1_0_R
 
 <br>
 
+<details>
+  <summary>Bovine</summary>
+
+```sh
+ln -sf /projects/dyammons@colostate.edu/references/bovine/bovine_ref_genome/ bovine_ref_genome
+reference=/projects/$USER/references/bovine/bovine_ref_genome
+```
+
+</details>
+
+<br>
+
 Once the files are properly linked we should now be able to see it, so let's check.
 ```sh
 ls
@@ -206,7 +229,12 @@ reference=/scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/canFam3
 
 ROS
 ```sh
-#add
+reference=/scratch/alpine/dyammons@colostate.edu/scRNA_references/canine/ros/canine_ref_genome_cellranger_7_1_0_ROS_Cfam_1_0_110_base/
+```
+
+Bovine
+```sh
+reference=/projects/dyammons@colostate.edu/references/bovine/bovine_ref_genome/
 ```
 
 </details>
@@ -441,6 +469,19 @@ ln -sf /scratch/alpine/dyammons@colostate.edu/proj02_k9_pbmc/01_input/ 01_input
 
 ```sh
 ln -sf /scratch/alpine/dyammons@colostate.edu/proj04_k9_nasal/01_input/ 01_input
+```
+
+</details>
+
+<br>
+
+<details open>
+  <summary>Symbolic link to bovine data (SR and GJ only) </summary>
+
+<br>
+
+```sh
+ln -sf /scratch/alpine/dyammons@colostate.edu/proj08_bov_scrna/01_input/ 01_input
 ```
 
 </details>
