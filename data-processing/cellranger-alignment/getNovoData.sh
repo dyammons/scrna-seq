@@ -14,7 +14,7 @@
 ##########################################################################################
 
 
-#read in the urls from Novogene and convert urls to lists
+echo "INFO: Processing url list"
 url_list=()
 while read line
 do
@@ -27,7 +27,7 @@ do
     fi
 done < $1
 
-#get and cat md5sum files for each sample
+echo "INFO: Concatinating MD5.txt files"
 md5s=$(sort -u getMd5.tmp)
 for mSum in $md5s
 do
@@ -36,12 +36,15 @@ do
     rm MD5.txt
 done
 
+echo "INFO: Downloading data to ${PWD}"
 #use parallelization to get the raw data - uses 8 workers
 echo $url_list | xargs -n 1 -P 8 wget -q -nc
 
-#check the md5sums for each file and record results in "md5_verify.log"
+echo "INFO: Ensuring file integrity"
 md5sum -c md5Chk.tmp > md5_verify.log
 
-#clean up any .tmp files generated
+echo "INFO: Data transfer complete. Cleaning up directory."
 cp md5Chk.tmp MD5.txt
 rm *.tmp
+
+echo "INFO: Script complete. Please review the md5_verify.log file to ensure files transfered properly."
