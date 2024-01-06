@@ -36,7 +36,7 @@ declare -a StringArray=($samples)
 
 ### Load cellranger
 module purge
-module load cellranger
+module load cellranger/7.1.0
 cellranger --version
 
 
@@ -51,8 +51,7 @@ cmd1="cellranger count --id=${StringArray[${SLURM_ARRAY_TASK_ID}]} \
                        --transcriptome=${ref_pwd} \
                        --expect-cells=5000 \
                        --dry" ### some add --include-introns=false \
-echo $cmd1
-echo -e "\t$ ${cmd1}"
+echo ${cmd1}
 time eval $cmd1
 
 ##### END CODE #####
