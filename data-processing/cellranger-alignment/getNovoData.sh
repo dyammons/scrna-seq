@@ -27,21 +27,11 @@ do
     fi
 done < $1
 
-
-#make output dir(s) for each sample being retrieved
-sample_list=$(sort -u samples.tmp)
-mkdir $sample_list
-
-#get and move md5sum files to appropriate dir
-#this was a little tricky b/c all of the checksum files have the same name (MDS.txt), to this code gets that sorted
+#get and cat md5sum files for each sample
 md5s=$(sort -u getMd5.tmp)
-
 for mSum in $md5s
 do
     wget -q $mSum
-    getName=$(echo $mSum | cut -d "/" -f5)
-    cp MD5.txt ./$getName/
-    sed -i "s/  /  .\/$getName\//g" MD5.txt
     cat MD5.txt >> md5Chk.tmp
     rm MD5.txt
 done
@@ -49,14 +39,9 @@ done
 #use parallelization to get the raw data - uses 8 workers
 echo $url_list | xargs -n 1 -P 8 wget -q -nc
 
-#move the sample(s) to their cooresponding dir(s)
-for sample in $sample_list
-do
-   mv $sample* ./$sample/ 2>/dev/null
-done
-
 #check the md5sums for each file and record results in "md5_verify.log"
 md5sum -c md5Chk.tmp > md5_verify.log
 
 #clean up any .tmp files generated
+cp md5Chk.tmp MD5.txt
 rm *.tmp

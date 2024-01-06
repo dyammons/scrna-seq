@@ -77,7 +77,7 @@ wget ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE225nnn/GSE225599/suppl/*.tar
 
 #### 2) Getting data from Novogene
 
-[`getNovoData.sh`](./getNovoData.sh) is a `bash` script that provides a paralellized means of downloading data from Novogene servers and ensures data integretiy after transfer.  
+[`getNovoData.sh`](./getNovoData.sh) is a `bash` script that provides a paralellized means of downloading data from Novogene servers and ensures data integrity after transfer.  
 
 The script requires the input of one `.txt` file that contains the `urls` to the files you wish to download.  
 
