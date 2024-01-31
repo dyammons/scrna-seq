@@ -441,6 +441,16 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
             message("To run indReClus == TRUE you must provide an integrated Seurat object for the seu.obj argument.")
             break()
         }
+        
+        #if any sample has less than 30 cells. exlude the sample from downstream analysis
+        if(min(table(seu.obj$orig.ident)) < 30){
+            exclude <- as.data.frame(table(seu.obj$orig.ident)) %>% filter(Freq < 30) %>% pull(Var1)
+            seu.obj <- subset(seu.obj, invert = T, 
+                              subset = orig.ident %in% exclude)
+            seu.obj$orig.ident <- factor(seu.obj$orig.ident)
+        }
+        
+        #split objects to allow for re-integration
         try(seu.obj[['RNA']] <- split(seu.obj[["RNA"]], f = seu.obj$orig.ident), silent = T)
     }
 
@@ -763,7 +773,7 @@ prettyFeats <- function(seu.obj = NULL, nrow = 3, ncol = NULL, features = "", co
 #error if more than 2 levels ORR make if so user specifies compatisipon
 
 linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = F, groupBy = "clusterID", 
-                   comparision = "cellSource", outDir = "./output/", outName = "", cluster = NULL, 
+                   comparison = "cellSource", outDir = "./output/", outName = "", cluster = NULL, 
                    labCutoff = 20, noTitle = F, contrast = NULL, colUp = "red", colDwn = "blue", 
                    subtitle = T, returnUpList = F, returnDwnList = F, forceReturn = F, useLineThreshold = F, 
                    pValCutoff = 0.01, logfc.threshold = 0.58,
@@ -774,32 +784,29 @@ linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = F, groupBy = "clus
     Idents(seu.obj) <- groupBy    
     
     if(is.null(contrast)){
-        message(paste0("It is now reccomened that a contrast be provided. This should be two levels present in the comparision metadata slot. Please provide this information as c(",  "'comp1'", ",",  "'comp2'",") and the analysis will run comp1 VS comp2."))
-        contrast <- levels(seu.obj@meta.data[[comparision]])[c(1:2)]
+        message(paste0("It is now reccomened that a contrast be provided. This should be two levels present in the comparison metadata slot. Please provide this information as c(",  "'comp1'", ",",  "'comp2'",") and the analysis will run comp1 VS comp2."))
+        contrast <- levels(seu.obj@meta.data[[comparison]])[c(1:2)]
         message(paste0("Contrasting - (1) ", contrast[1]," - VS - (2) ", contrast[2]))
     }
     
     #loop through active.ident to make plots for each group
     lapply(if(is.null(cluster)){levels(seu.obj)}else{cluster}, function(x) {
-        
+
         #subset on population of cells to analyze -- if all cells are included this will effectively not do anything
         seu.sub <- subset(seu.obj, idents = x)
         seu.sub@meta.data[[groupBy]] <- droplevels(seu.sub@meta.data[[groupBy]])
                
         #use FindMarkers buried in the the custom vilnSplitComp function to complete stats to ID DEGs
-        geneList <- vilnSplitComp(seu.obj = seu.sub, groupBy = groupBy, refVal = comparision, 
+        geneList <- vilnSplitComp(seu.obj = seu.sub, groupBy = groupBy, refVal = comparison, 
                                   outDir = outDir, outName = outName, 
                                   saveOut = F, saveGeneList = saveGeneList, returnGeneList = T, 
                                   contrast = contrast, pValCutoff = pValCutoff, logfc.threshold = logfc.threshold
                                  ) 
         geneList <- geneList[[1]]
-        
-        #filter FindMarkers output to only retain features that pass the p_val threshold
-        geneList <- geneList[geneList$p_val_adj < pValCutoff,]
         geneList$gene <- rownames(geneList)
         
         #extract average expression values for plotting (FYI: AverageExpression() is applied to non-logged data!!)
-        Idents(seu.sub) <- comparision
+        Idents(seu.sub) <- comparison
         avg.seu.sub <- log1p(AverageExpression(seu.sub, verbose = FALSE)$RNA)
         avg.seu.sub <- as.data.frame(avg.seu.sub)
         
@@ -1847,7 +1854,7 @@ vilnPlots <- function(seu.obj = NULL, inFile = NULL, groupBy = "clusterID", numO
         }     
         
         if (outputGeneList == TRUE){
-            outfile <- paste0(outDir, outName, "_gene_list.csv")
+            outfile <- paste0(outDir, outName, "_",  groupBy, "_gene_list.csv")
             write.csv(cluster.markers, file = outfile)
         }  
         
@@ -2132,8 +2139,8 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
                                      logfc.threshold = MIN_LOGFOLD_CHANGE,
                                      only.pos = TRUE)
     }
-    
-    key.genes <- all.markers[!grepl(filterTerm, row.names(all.markers)),] 
+
+    key.genes <- all.markers[!grepl(paste(filterTerm,collapse="|"), all.markers$gene),] 
     key.genes.sortedByPval = key.genes[order(key.genes$p_val),]
 
     features <- key.genes.sortedByPval %>%  group_by(cluster) %>% do(head(., n=5))
@@ -2149,7 +2156,7 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
     features_cnt$endVal <- rev(features_cnt$endVal)
     features_cnt$startVal <- rev(features_cnt$startVal)
 #     features_cnt$cluster <- as.numeric(features_cnt$cluster)
-        features_cnt$Var1 <- as.numeric(features_cnt$Var1)
+    features_cnt$Var1 <- as.numeric(features_cnt$Var1)
 
     
     p <- DotPlot(seu.integrated.obj,
@@ -2170,7 +2177,7 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
         legend.key.size = unit(1, "line"),
         panel.border = element_rect(color = "black",
                                     fill = NA,
-                                    size = 1),
+                                    linewidth = 1),
        # ) +
         axis.ticks.x = element_blank()) +
   scale_colour_viridis(option="magma", name='Average\nExpression') +
@@ -2899,7 +2906,6 @@ ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./out
 #' @return Seurat object with new metadata slot with numerical cluster ID with lowest value corresponding to largest cluster
 #' @examples 
 #' @export convertTOclusID(seu.obj, metaSlot = "majorID")
-
 
 convertTOclusID <- function(
     seu.obj = seu.obj, 
