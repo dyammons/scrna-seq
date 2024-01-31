@@ -40,6 +40,7 @@ library(scRNAseq)
 # BiocManager::install("scuttle")
 library(scuttle)
 library(ape)
+library(lemon)
 # BiocManager::install("ggtree")
 library(ggtree)
 # BiocManager::install("ComplexHeatmap")
@@ -448,7 +449,8 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
         FindClusters(., resolution = 1, cluster.name = "unintegrated_clusters")
     } else if (normalization.method == "SCT"){
         seu.obj <- SCTransform(seu.obj)
-        seu.obj <- RunPCA(seu.obj, npcs = 30, verbose = F)
+        seu.obj <- RunPCA(seu.obj) %>% FindNeighbors(., dims = 1:30, reduction = "pca") %>% 
+        FindClusters(., resolution = 1, cluster.name = "unintegrated_clusters")
     } else {
         message("The normalization.method value is not recognized. The options are 'LogNormalize' or 'SCT'. Please update argument and try again.")
         break()
@@ -459,6 +461,7 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
                                    method = noquote(method), 
                                    orig.reduction = "pca", 
                                    new.reduction = "integrated",
+                                   normalization.method = normalization.method,
                                    verbose = TRUE)
     
         # re-join layers after integration
@@ -469,32 +472,40 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
         }else{
         
         seu.obj <- IntegrateLayers(object = seu.obj, 
-                           method = CCAIntegration, 
-                           orig.reduction = "pca", 
-                           new.reduction = "integrated.cca",
-                           verbose = FALSE)
-        seu.obj <- RunPCA(seu.obj)
+                                   method = CCAIntegration, 
+                                   orig.reduction = "pca", 
+                                   new.reduction = "integrated.cca",
+                                   normalization.method = normalization.method,
+                                   verbose = FALSE)
+#         seu.obj <- RunPCA(seu.obj,
+#                           reduction.name = "pca.cca")
         gc()
         seu.obj <- IntegrateLayers(object = seu.obj, 
-                           method = HarmonyIntegration, 
-                           orig.reduction = "pca", 
-                           new.reduction = "integrated.harmony",
-                           verbose = FALSE)
-        seu.obj <- RunPCA(seu.obj)
+                                   method = HarmonyIntegration, 
+                                   orig.reduction = "pca", 
+                                   new.reduction = "integrated.harmony",
+                                   normalization.method = normalization.method,
+                                   verbose = FALSE)
+#         seu.obj <- RunPCA(seu.obj,
+#                           reduction.name = "pca.harmony")
         gc()
         seu.obj <- IntegrateLayers(object = seu.obj, 
-                           method = JointPCAIntegration, 
-                           orig.reduction = "pca", 
-                           new.reduction = "integrated.joint",
-                           verbose = FALSE)
-        seu.obj <- RunPCA(seu.obj)
+                                   method = JointPCAIntegration, 
+                                   orig.reduction = "pca", 
+                                   new.reduction = "integrated.joint",
+                                   normalization.method = normalization.method,
+                                   verbose = FALSE)
+#         seu.obj <- RunPCA(seu.obj,
+#                           reduction.name = "pca.joint")
         gc()
         seu.obj <- IntegrateLayers(object = seu.obj, 
-                           method = RPCAIntegration, 
-                           orig.reduction = "pca", 
-                           new.reduction = "integrated.rcpa",
-                           verbose = FALSE)
-        seu.obj <- RunPCA(seu.obj)
+                                   method = RPCAIntegration, 
+                                   orig.reduction = "pca", 
+                                   new.reduction = "integrated.rcpa",
+                                   normalization.method = normalization.method,
+                                   verbose = FALSE)
+#         seu.obj <- RunPCA(seu.obj,
+#                           reduction.name = "pca.rcpa")
         gc()
         
         # re-join layers after integration
@@ -562,7 +573,7 @@ clusTree <- function(seu.obj = NULL,
 #' @param stashID String; name of metadata slot to store the results of unsupervised clustering
 #' @param returnFeats Logical; if TRUE return feature plots
 #' @param algorithm Integer; 1-4 - default 3; see Seurat documentation on FindClusters() for more information
-#' @param prefix String; "integrated_snn_res." for an integrated object, "RNA_snn_res." for an unintegrated, single sample object
+#' @param prefix String; "SCT_snn_res." for SCT normlaized object, "RNA_snn_res." for a log normlized object
 #' @param assay String; "integrated" for an integrated object, "RNA" for an unintegrated, single sample object -- should match prefix param
 #' @param saveRDS Logical; if TRUE then a Seurat object will be saved with a "_S3.rds" suffix in outDir
 #' @param return_obj Logical; if TRUE then a Seurat object will be returned
@@ -870,9 +881,9 @@ linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = T, groupBy = "clus
 }
 
 ############ formatUMAP ############
-formatUMAP <- function(plot = NULL) {
+formatUMAP <- function(plot = NULL, smallAxes = F) {
     
-    pi <- plot + labs(x = "UMAP1", y = "UMAP2") +
+    plot <- plot + labs(x = "UMAP1", y = "UMAP2") +
     theme(axis.text = element_blank(), 
           axis.ticks = element_blank(),
           axis.title = element_text(size= 20),
@@ -881,21 +892,49 @@ formatUMAP <- function(plot = NULL) {
           axis.line = element_blank(),
           panel.border = element_rect(color = "black",
                                       fill = NA,
-                                      linewidth = 2)
+                                      size = 2)
           )
-    return(pi)
+    
+    if(smallAxes){
+       
+        axes <- ggplot() + labs(x = "UMAP1", y = "UMAP2") + 
+        theme(axis.line = element_line(colour = "black", 
+                                       arrow = arrow(angle = 30, length = unit(0.1, "inches"),
+                                                     ends = "last", type = "closed"),
+                                      ),
+              axis.title.y = element_text(colour = "black", size = 20),
+              axis.title.x = element_text(colour = "black", size = 20),
+              panel.border = element_blank(),
+              panel.background = element_rect(fill = "transparent",colour = NA),
+              plot.background = element_rect(fill = "transparent",colour = NA),
+              panel.grid.major = element_blank(), 
+              panel.grid.minor = element_blank()
+             )
+        
+        plot <- plot + theme(axis.title = element_blank(),
+                             panel.border = element_blank(),
+                             plot.margin = unit(c(-7, -7, -7, -7), "pt")
+                            ) + NoLegend()
+
+        plot <- plot + inset_element(axes,left= 0,
+                                bottom = 0,
+                                right = 0.25,
+                                top = 0.25,
+                                align_to = "full"
+                               )
+    }
+    
+    return(plot)
 }
 
 
-############ cusUMAP ############
+############ cusLabels ############
 #this function requires a UMAP plot gerneated using DimPlot with label = T, label.box = T
-cusLabels <- function(plot = NULL, shape = 21, labCol = "black", size = 8, alpha = 1, rm.na = T, nudge_x = NULL, nudge_y = NULL, textSize = 4
+cusLabels <- function(plot = NULL, shape = 21, labCol = "black", size = 8, alpha = 1, rm.na = T, nudge_x = NULL, nudge_y = NULL, textSize = 4, smallAxes = FALSE
                   ) {
     
-    pi <- formatUMAP(plot)
-
     #extract label coords and colors
-    g <- ggplot_build(pi)
+    g <- ggplot_build(plot)
     #pointData <- as.data.frame(g$data[[1]][!duplicated(g$data[[1]][,"colour"]),])
     #rownames(pointData) <- NULL
     #pointData$group <- pointData$group-1
@@ -929,10 +968,10 @@ cusLabels <- function(plot = NULL, shape = 21, labCol = "black", size = 8, alpha
 
     #rownames(labCordz) <- NULL
     #remove old labels
-    pi$layers[2] <- NULL
+    plot$layers[2] <- NULL
 
     #add labels to the stripped plot to create final image
-    plot <- pi + geom_point(data = labCordz, aes(x = UMAP1, y = UMAP2),
+    plot <- plot + geom_point(data = labCordz, aes(x = UMAP1, y = UMAP2),
                             shape=shape,
                             size=size,
                             fill=labCordz$colour,
@@ -941,6 +980,7 @@ cusLabels <- function(plot = NULL, shape = 21, labCol = "black", size = 8, alpha
                             colour="black") +
     geom_text(data = labCordz, size = textSize, mapping = aes(x = UMAP1, y = UMAP2), label = labCordz$clusterID, color = labCordz$labCol)
     
+    plot <- formatUMAP(plot, smallAxes = smallAxes)
     return(plot)
 }
 
@@ -1746,7 +1786,7 @@ volcFromFM <- function(seu.obj = NULL, padj_cutoff = 0.01, lfcCut = 0.58, title 
 ############ vilnPlots ############
 
 vilnPlots <- function(seu.obj = NULL, inFile = NULL, groupBy = "clusterID", numOfFeats = 24, outName = "",
-                      outDir = "", outputGeneList = T, filterOutFeats = c("^MT-", "^RPL", "^RPS"), assay = "RNA", returnViln = T, features = NULL,
+                      outDir = "", outputGeneList = T, filterOutFeats = c("^MT-", "^RPL", "^RPS"), Assay = "RNA", returnViln = T, features = NULL,
                       min.pct = 0.25, only.pos = T, resume = F, resumeFile = NULL
                      ){ 
     
@@ -1757,7 +1797,7 @@ vilnPlots <- function(seu.obj = NULL, inFile = NULL, groupBy = "clusterID", numO
             seu.obj <- seu.obj
         }
 
-        DefaultAssay(seu.obj) <- assay
+        DefaultAssay(seu.obj) <- Assay
 
         Idents(seu.obj) <- groupBy
         ident.level <- levels(seu.obj@active.ident)
@@ -1805,7 +1845,8 @@ vilnPlots <- function(seu.obj = NULL, inFile = NULL, groupBy = "clusterID", numO
 
 ############ singleR ############
 
-singleR <- function(seu.obj = NULL, outName = "", clusters = "clusterID", outDir = ""
+singleR <- function(seu.obj = NULL, reduction = NULL, clusters = "clusterID",
+                    outName = "",  outDir = ""
                      ){
     
     cntData <- GetAssayData(seu.obj, slot = "data", assay = "RNA")
@@ -1830,10 +1871,10 @@ singleR <- function(seu.obj = NULL, outName = "", clusters = "clusterID", outDir
         # SingleR assigns labels for all clusters, even for those not in the reference
         # So use pruned.labels to remove uncertain labels 
         seu.obj@meta.data[[ref_name]] <- rst$pruned.labels[match(seu.obj@meta.data[[clusters]], rownames(rst))]
-        
+
         #Visualize cell labels
-        p <- DimPlot(seu.obj, reduction = "umap", group.by = ref_name, label = TRUE)
-        ggsave(filename = paste0(outDir,outName,"_",ref_name, ".png"), plot = p, width = 10, height = 7)
+        p <- DimPlot(seu.obj, reduction = reduction, group.by = ref_name, label = TRUE)
+        ggsave(plot = p, filename = paste0(outDir,outName,"_",ref_name, ".png"),  width = 10, height = 7)
     })
 }
     
@@ -2099,9 +2140,9 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
   guides(size=guide_legend(override.aes = list(shape=21, colour="black", fill="white"),
                            label.position = "bottom")) +
   scale_size(range = c(0.5, 8), limits = c(0, 100)) +
-  annotate("rect", xmin = features_cnt$startVal, xmax = features_cnt$endVal, ymin = features_cnt$Var1-0.5, ymax = features_cnt$Var1+0.5, fill = NA, colour = "mediumpurple1", size = 1) +
-  geom_tile(aes(fill = id, x = 0), size = 1, show.legend = FALSE) + 
-  geom_tile(aes(fill = id, x = as.numeric(length(unique(features$gene)))+1), size = 1, show.legend = FALSE) + #need to extract data then add colors from colArray to get this corrected
+  annotate("rect", xmin = features_cnt$startVal, xmax = features_cnt$endVal, ymin = features_cnt$Var1-0.5, ymax = features_cnt$Var1+0.5, fill = NA, colour = "grey20", size = 0.5) +
+  geom_tile(aes(fill = id, x = 0), linewidth = 1, show.legend = FALSE) + 
+  geom_tile(aes(fill = id, x = as.numeric(length(unique(features$gene)))+1), linewidth = 1, show.legend = FALSE) + #need to extract data then add colors from colArray to get this corrected
   #scale_fill_manual(values=c("0" = "#CDAD00","1" = "#FFC125", "2" = "#0288D1", "3" = "blue", "4" = "#00CDCD", "5" = "gold", "6" = "brown")) +
   coord_flip() +
   guides(color = guide_colorbar(title = 'Scaled\nExpression')) +
@@ -2613,6 +2654,7 @@ plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
         enriched$Description <- unlist(lapply(enriched$Description, str_trunc, width = 55, side = "right", ellipsis = "*"))
     }
     
+    enriched <- na.omit(enriched)
     p <- ggplot(data=enriched, aes(x=x_axis, y=Description, fill = direction)) +
     geom_bar(stat="identity") +  theme_classic() + scale_y_discrete(limits=rev(enriched$Description)
                                                                    ) + 
@@ -2809,4 +2851,39 @@ ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./out
     data.df <- rownames_to_column(data.df, "barcode")
     write.table(data.df,paste0(outDir,reduction,".coords.tsv"), quote=FALSE, sep='\t', row.names = F)
     
+}
+
+############ convertTOclusID ############
+#' convert string cell types to sorted numerical IDs  
+#'
+#' @param seu.obj Seurat object to process
+#' @param metaSlot a valid metadata slot to convert to numerical ID
+#' @param newMetaName optional name for the new metadata slot. Default =  paste0(metaSlot, "_clusID")
+#' @return Seurat object with new metadata slot with numerical cluster ID with lowest value corresponding to largest cluster
+#' @examples 
+#' @export convertTOclusID(seu.obj, metaSlot = "majorID")
+
+
+convertTOclusID <- function(
+    seu.obj = seu.obj, 
+    metaSlot = NULL,
+    newMetaName = NULL
+){
+    
+    #check input
+    if(is.null(newMetaName)){
+        newMetaName <- paste0(metaSlot, "_clusID")
+    }
+        
+    #extract and order counts by string cluster
+    clusterID_final <- table(seu.obj@meta.data[metaSlot]) %>% as.data.frame() %>% arrange(desc(Freq)) %>%
+    mutate(clusterID_final=row_number()-1) %>% arrange(clusterID_final) 
+   
+    #calculate numerical cluster ID (0 for largest cluster)
+    newID <- clusterID_final$clusterID_final
+    names(newID) <- clusterID_final[ ,metaSlot]
+    Idents(seu.obj) <- metaSlot
+    seu.obj <- RenameIdents(seu.obj, newID)
+    seu.obj@meta.data[newMetaName] <- Idents(seu.obj)
+    return(seu.obj)
 }
