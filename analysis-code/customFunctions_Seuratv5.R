@@ -45,6 +45,7 @@ library(lemon)
 library(ggtree)
 # BiocManager::install("ComplexHeatmap")
 library(ComplexHeatmap)
+library(reshape2)
 
 ############ gg_color_hue ############
 
@@ -761,56 +762,78 @@ prettyFeats <- function(seu.obj = NULL, nrow = 3, ncol = NULL, features = "", co
 #features to add
 #error if more than 2 levels ORR make if so user specifies compatisipon
 
-linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = T, groupBy = "clusterID", comparison = "cellSource", outDir = "./output/", outName = "", cluster = NULL, labCutoff = 20, noTitle = F,
-                   colUp = "red", colDwn = "blue", subtitle = T, returnUpList = F, returnDwnList = F, forceReturn = F, useLineThreshold = F, pValCutoff = 0.01, flipLFC = F, saveGeneList = F, addLabs = ""
+linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = F, groupBy = "clusterID", 
+                   comparision = "cellSource", outDir = "./output/", outName = "", cluster = NULL, 
+                   labCutoff = 20, noTitle = F, contrast = NULL, colUp = "red", colDwn = "blue", 
+                   subtitle = T, returnUpList = F, returnDwnList = F, forceReturn = F, useLineThreshold = F, 
+                   pValCutoff = 0.01, logfc.threshold = 0.58,
+                   saveGeneList = F, addLabs = "", labsHide = c("^MT-","^RPL","^ENS","^RPS"), returnPlots = F
                   ) {
     
     #set active.ident
-    Idents(seu.obj) <- groupBy
-
+    Idents(seu.obj) <- groupBy    
+    
+    if(is.null(contrast)){
+        message(paste0("It is now reccomened that a contrast be provided. This should be two levels present in the comparision metadata slot. Please provide this information as c(",  "'comp1'", ",",  "'comp2'",") and the analysis will run comp1 VS comp2."))
+        contrast <- levels(seu.obj@meta.data[[comparision]])[c(1:2)]
+        message(paste0("Contrasting - (1) ", contrast[1]," - VS - (2) ", contrast[2]))
+    }
+    
     #loop through active.ident to make plots for each group
     lapply(if(is.null(cluster)){levels(seu.obj)}else{cluster}, function(x) {
         
+        #subset on population of cells to analyze -- if all cells are included this will effectively not do anything
         seu.sub <- subset(seu.obj, idents = x)
         seu.sub@meta.data[[groupBy]] <- droplevels(seu.sub@meta.data[[groupBy]])
-        geneList <- vilnSplitComp(seu.obj = seu.sub, groupBy = groupBy, refVal = comparison, outDir = outDir, outName = outName, 
-                                  saveOut = F, saveGeneList = saveGeneList, returnGeneList = T
+               
+        #use FindMarkers buried in the the custom vilnSplitComp function to complete stats to ID DEGs
+        geneList <- vilnSplitComp(seu.obj = seu.sub, groupBy = groupBy, refVal = comparision, 
+                                  outDir = outDir, outName = outName, 
+                                  saveOut = F, saveGeneList = saveGeneList, returnGeneList = T, 
+                                  contrast = contrast, pValCutoff = pValCutoff, logfc.threshold = logfc.threshold
                                  ) 
         geneList <- geneList[[1]]
+        
+        #filter FindMarkers output to only retain features that pass the p_val threshold
         geneList <- geneList[geneList$p_val_adj < pValCutoff,]
-        if(flipLFC){
-            geneList$avg_log2FC <- -geneList$avg_log2FC
-        }
         geneList$gene <- rownames(geneList)
         
-        Idents(seu.sub) <- comparison
+        #extract average expression values for plotting (FYI: AverageExpression() is applied to non-logged data!!)
+        Idents(seu.sub) <- comparision
         avg.seu.sub <- log1p(AverageExpression(seu.sub, verbose = FALSE)$RNA)
         avg.seu.sub <- as.data.frame(avg.seu.sub)
-        avg.seu.sub <- avg.seu.sub[!grepl("ENSCAFG", row.names(avg.seu.sub)),] #make better
-        avg.seu.sub <- avg.seu.sub[!grepl("HBM", row.names(avg.seu.sub)),] #make better
         
+        #convert groups to "X" and "Y" for plotting where contrast[2] is on x-axis and contrast[1] is on y-axis
+        avg.seu.sub <- avg.seu.sub[ ,contrast[c(2,1)]]
         colnames(avg.seu.sub) <- c("X","Y")
-        #calculate which points fall outside threshold, so they can be labled --- NEED TO FIX THIS....
-        
+
+        #do some manupulation to label select data points
+        #this is recomened approach
         if(!useLineThreshold){
+            #join the coordinates df with the DEG results then run filtering to select data points to label
+            #this labels the top n selected by the user, ranked by abs(X*Y) to find the data points furthest from n.s.
+
             avg.seu.sub <- avg.seu.sub %>% mutate(gene=rownames(avg.seu.sub)) %>% 
             left_join(geneList, by = "gene") %>% 
             mutate(direction=case_when(avg_log2FC > 0 ~ "up",
                                        avg_log2FC < 0 ~ "dwn",
                                        is.na(avg_log2FC) ~ "NA"),
+                   direction=ifelse(gene %in% rownames(geneList)[grepl(paste(labsHide,collapse="|"), row.names(geneList))], "exclude", direction),
                    residual=case_when(direction == "up" ~ abs(Y-X),
                                       direction == "dwn" ~ abs(Y-X),
-                                      direction == "NA" ~ 0)) %>% arrange(desc(residual)) %>% group_by(direction) %>% 
-            #arrange(p_val_adj) %>% 
-            mutate(lab=ifelse(row_number() <= labCutoff 
+                                      direction == "NA" ~ 0,
+                                      direction == "exclude" ~ 0)) %>% arrange(desc(residual)) %>% group_by(direction) %>% 
+            mutate(lab=ifelse(row_number() <= labCutoff
                               & direction != "NA" 
-                              & gene %in% c(rownames(geneList),addLabs), gene, ifelse(gene %in% addLabs, gene, NA)), 
+                              & direction != "exclude"
+                              & gene %in% c(rownames(geneList),addLabs), gene, ifelse(gene %in% addLabs, gene, NA)),
                    lab_col=case_when(direction == "up" ~ colUp,
                                      direction == "dwn" ~ colDwn,
-                                     direction == "NA" ~ "black")
+                                     direction == "NA" ~ "black",
+                                     direction == "exclude" & avg_log2FC > 0 ~ colUp,
+                                     direction == "exclude" & avg_log2FC < 0 ~ colDwn)
                   )
         }else{
-            
             avg.seu.sub <- avg.seu.sub %>% mutate(gene=rownames(avg.seu.sub),
                                                   up=threshold+1*X, 
                                                   dn=-threshold+1*X,
@@ -831,20 +854,20 @@ linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = T, groupBy = "clus
                   )
         }
         
-               
+        #check if there was at least 1 DGE or force return == T before saving the plot
         if(length(na.omit(avg.seu.sub$lab)) > 0 | forceReturn == T){
-            outfile <- paste0(outDir,outName, "_", x,"_linear_deg_by_", groupBy,".png") 
-        
+            outfile <- paste0(outDir, outName, "_", gsub(" ", "_", x),"_linear_deg_by_", gsub(" ", "_", groupBy),".png")
+            
+            #make the plot
             p <- ggplot(data=avg.seu.sub, aes(x = X, y = Y, label=lab)) + 
             ggtitle(x, 
-                    if(subtitle) {subtitle = paste0("Average gene expression (", levels(seu.sub)[2]," vs ", levels(seu.sub)[1],")")}
-                     #paste("Cluster",x, sep = " "),
-                    ) +
+                    if(subtitle) {subtitle = paste("Average gene expression (", contrast[1]," vs ", contrast[2],")", sep = "")}
+                   ) +
             geom_point(color = avg.seu.sub$lab_col) + 
-            labs(x = levels(seu.sub)[1], y = levels(seu.sub)[2]) +
+            labs(x = contrast[2], y = contrast[1]) +
             {if(thresLine)geom_abline(intercept = threshold, slope = 1)} +
             {if(thresLine)geom_abline(intercept = -threshold, slope = 1)} + 
-            geom_label_repel(max.overlaps = Inf, size=5, color = avg.seu.sub$lab_col) + 
+            geom_label_repel(max.overlaps = Inf, size=5, color = avg.seu.sub$lab_col, max.time = 2, max.iter = 10000000) + 
             theme_classic() + 
             {if(noTitle)theme(axis.title = element_text(size= 20),
                   axis.text = element_text(size= 14),
@@ -860,8 +883,16 @@ linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = T, groupBy = "clus
                 
             }
         
+            #save the plot
             ggsave(outfile)
             
+            #if request to return, then do so
+            if(returnPlots){
+                return(p)
+                
+            }
+            
+            #if request to return, then do so -- this returns features upregulated in contrast[1]
             if(returnUpList){
                 up <- avg.seu.sub[avg.seu.sub$direction == "up",]
                 upList <- up$gene
@@ -869,6 +900,7 @@ linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = T, groupBy = "clus
                 
             }
             
+            #if request to return, then do so -- this returns features upregulated in contrast[2]
             if(returnDwnList){
                 dwn <- avg.seu.sub[avg.seu.sub$direction == "dwn",]
                 dwnList <- dwn$gene
@@ -879,6 +911,7 @@ linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = T, groupBy = "clus
             }
     })
 }
+
 
 ############ formatUMAP ############
 formatUMAP <- function(plot = NULL, smallAxes = F) {
@@ -892,7 +925,7 @@ formatUMAP <- function(plot = NULL, smallAxes = F) {
           axis.line = element_blank(),
           panel.border = element_rect(color = "black",
                                       fill = NA,
-                                      size = 2)
+                                      linewidth = 2)
           )
     
     if(smallAxes){
@@ -1055,7 +1088,7 @@ freqPlots <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "orig.iden
     labs(color = legTitle) +
     {if(showPval){ggpubr::stat_compare_means(aes(label = paste0("p = ", ..p.format..)), label.x.npc = "left", label.y.npc = 1,vjust = -1, size = 3)}} + 
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.2))) +
-    theme(panel.grid.major = element_line(color = "grey", size = 0.25),
+    theme(panel.grid.major = element_line(color = "grey", linewidth = 0.25),
           #legend.position = "none",
           text = element_text(size = 12)
           ) +                    
@@ -1077,56 +1110,60 @@ freqPlots <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "orig.iden
                                            
 ############ vilnSplitComp ############
 
-vilnSplitComp <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "cellSource", outName = "", nPlots = 9, saveOut = T, saveGeneList = F, returnGeneList = F, 
+vilnSplitComp <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "cellSource", outName = "", nPlots = 9, saveOut = T, saveGeneList = F, returnGeneList = F, contrast = NULL, filterOutFeats = c("^MT-","^RPL","^RPS"), logfc.threshold = 0.5, pValCutoff = 0.01,
                           outDir = "./output/"
                        ) {
     
+    #set the groups to contrast
     DefaultAssay(seu.obj) <- "RNA"
-    seu.obj@meta.data$cluster.condition <- paste(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[[refVal]], sep = "_")
-    
-    ident.level <- levels(seu.obj@meta.data[[groupBy]])
+    seu.obj$cluster.condition <- paste(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[[refVal]], sep = "_")
     Idents(seu.obj) <- "cluster.condition"
     
-    p <- lapply(ident.level, function(x) {
+    p <- lapply(levels(seu.obj@meta.data[[groupBy]]), function(x) {
+
+        #split the groups by condition
+        comp1 <- paste(x, gsub(" ", "_", contrast[1]), sep = "_") 
+        comp2 <- paste(x, gsub(" ", "_", contrast[2]), sep = "_")
         
-        comp1 <- paste(x, unique(seu.obj@meta.data[[refVal]])[1], sep = "_") # need to improve this - what iff more than 2 groups?????
-        comp2 <- paste(x, unique(seu.obj@meta.data[[refVal]])[2], sep = "_")
+        #use FindMarkers to complete DGE analysis -- default parameters used
+        message(paste0("Contrasting - (1) ", comp1," - VS - (2) ", comp2))
+        cluster.markers <- FindMarkers(seu.obj, ident.1 = comp1,  ident.2 = comp2, min.pct = 0, logfc.threshold = logfc.threshold) 
+        message(paste0("Number of DEGs prior to p_val_adj filter:"))
+        print(cluster.markers %>% mutate(direction = ifelse(avg_log2FC > 0, "Up", "Down")) %>% group_by(direction) %>% summarize(nRow = n()))
         
-        cluster.markers <- FindMarkers(seu.obj, ident.1 = comp1,  ident.2 = comp2, min.pct = 0, logfc.threshold = 0.5) 
-        
+        #filter the results based on the user specified adjusted p-value
+        cluster.markers <- cluster.markers %>% filter(p_val_adj < pValCutoff)
+        message(paste0("Number of DEGs following p_val_adj filter:"))
+        print(cluster.markers %>% mutate(direction = ifelse(avg_log2FC > 0, "Up", "Down")) %>% group_by(direction) %>% summarize(nRow = n()))
+
+        #save the output DGE results if requested
         if(saveGeneList){
-            outfile <- paste0(outDir, outName,"_", x,"geneList.csv")
             cluster.markers$cellType <- x
-            write.csv(cluster.markers, file = outfile)
+            write.csv(cluster.markers, file = paste0(outDir, outName, "_", gsub(" ", "_", x) ,"_geneList.csv"))
         }
 
+        #return the gene list if requested
         if(returnGeneList){
             return(cluster.markers)
         }
         
-        exportList <- row.names(cluster.markers)
-        exportList <- exportList[!grepl("^MT-", exportList)] # improve this
-        exportList <- exportList[!grepl("^RPL", exportList)]
-        exportList <- exportList[!grepl("^RPS", exportList)]
-        exportList <- exportList[!grepl("^ENS", exportList)]
+        #filter out requested features using regex
+        cluster.markers <- cluster.markers[!grepl(paste(filterOutFeats,collapse="|"), row.names(cluster.markers)), ]
         
-        outList <- head(exportList, n = nPlots)
-        if(length(outList) > 0){
-        seurat.vlnplot <- VlnPlot(
-            object = seu.obj,
-            idents = c(comp1,comp2),
-            features = outList,
-            split.by = refVal
-        )
-  
-        if(saveOut){
-            outfile <- paste0(outDir, outName,"_", x,"_top",nPlots,"_comp_vlnPlot.png") 
-            png(file = outfile, width=2520, height=1460)
-        
-            print(seurat.vlnplot)
-            dev.off()
-        }
+        #plot the desired number of DEGs by subsetting the DEGs
+        cluster.markers.toPlot <- cluster.markers %>% top_n(n = -nPlots, wt = p_val)
+        if(length(rownames(cluster.markers.toPlot)) > 0){
+            seurat.vlnplot <- VlnPlot(object = seu.obj,
+                                      idents = c(comp1,comp2),
+                                      features = rownames(cluster.markers.toPlot),
+                                      split.by = refVal
+            )
             
+            if(saveOut){
+                png(file = paste0(outDir, outName,"_", x,"_top",nPlots,"_comp_vlnPlot.png"), width=2520, height=1460)
+                print(seurat.vlnplot)
+                dev.off()
+            }
         }
     })
 }
