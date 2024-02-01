@@ -2661,9 +2661,11 @@ prettyVolc <- function(plot = NULL, rightLab = NULL, leftLab = NULL, rightCol = 
 
 
 ############ plotGSEA ############
+#TO DO:L fix problem with trimTerm
+
 plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
-                     category = "C5", species = "dog", upCol = "red", dwnCol = "blue",
-                     pvalueCutoff = 0.05, subcategory = NULL, termsTOplot = 8, upOnly = F, trimTerm = T
+                     category = "C5", species = "dog", upCol = "red", dwnCol = "blue", saveRes = NULL,
+                     pvalueCutoff = 0.05, subcategory = NULL, termsTOplot = 8, upOnly = F, trimTerm = T, size = 4
                     ){
     if(!is.null(pwdTOgeneList)){
         geneLists <- read.csv(pwdTOgeneList)
@@ -2698,6 +2700,15 @@ plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
 
     }
     
+    if(!is.null(saveRes)){
+        if(!exists("enriched_dwn")){
+            write.csv(enriched_up, file = saveRes)
+        } else {
+             write.csv(rbind(enriched_up,enriched_dwn), file = saveRes)
+        }
+       
+    }
+
     enriched <- enriched %>% arrange(desc(x_axis))
     
     if(trimTerm){
@@ -2707,14 +2718,21 @@ plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
         enriched$Description <- gsub("GOBP_", "", enriched$Description)
         enriched$Description <- gsub("GOCC_", "", enriched$Description)
         enriched$Description <- gsub("GOMF_", "", enriched$Description)
-        enriched$Description <- unlist(lapply(enriched$Description, str_trunc, width = 55, side = "right", ellipsis = "*"))
+        enriched$Description <- gsub("HP_", "", enriched$Description)
+        enriched$Description <- gsub("POSITIVE_", "POS_", enriched$Description)
+        enriched$Description <- gsub("ANTIGEN_PROCESSING_&_", "", enriched$Description)
+        enriched$Description <- gsub("ADAPTIVE_IMMUNE_RESPONSE_BASED_ON_SOMATIC_RECOMBINATION_OF_IMMUNE_RECEPTORS_BUILT_FROM_IMMUNOGLOBULIN_SUPERFAMILY_DOMAINS", "ADAPTIVE_IMMUNE_RESPONSE_BASED_ON_SOMATIC_RECOMBINATION", enriched$Description)
+        enriched$Description <- gsub("PROTON_TRANSPORTING_ATP_SYNTHASE_ACTIVITY_ROTATIONAL_MECHANISM", "PROTON_TRANSPORTING_ATP_SYNTHASE_ACTIVITY", enriched$Description)
+        
+#         enriched$Description <- unlist(lapply(enriched$Description, str_trunc, width = 50, side = "right", ellipsis = "*")) ### TO DO: this causes problems if trunc results in the same string -- need to ensure that is handled before adding this back in
     }
     
+    #remove NAs and then plot
     enriched <- na.omit(enriched)
     p <- ggplot(data=enriched, aes(x=x_axis, y=Description, fill = direction)) +
     geom_bar(stat="identity") +  theme_classic() + scale_y_discrete(limits=rev(enriched$Description)
                                                                    ) + 
-    geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), hjust = ifelse(enriched$x_axis > 0, 1,0), size = 4) + 
+    geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), hjust = ifelse(enriched$x_axis > 0, 1,0), size = size) + 
     theme(axis.ticks.y = element_blank(),
           axis.text.y = element_blank(),
           axis.title.y = element_blank(),
@@ -2723,8 +2741,9 @@ plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
          ) + coord_cartesian(clip = "off") + scale_x_symmetric(mid = 0, name = "Signed log10(padj)") + NoLegend() + scale_fill_manual(values = c(upCol,dwnCol))
     
     return(p)
-}
 
+    
+}
 ############ crossSpeciesDEG ############
 ###TO DO: fix intercettion line
 crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1 = "Canine", species2 = "Human", 
