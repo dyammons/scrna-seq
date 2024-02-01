@@ -450,6 +450,13 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
             seu.obj$orig.ident <- factor(seu.obj$orig.ident)
         }
         
+        #if any sample has less than 100 cells. modify k.weight to match the sample with the lowest number of cells
+        if(min(table(seu.obj$orig.ident)) < 100){
+            k <- min(table(seu.obj$orig.ident))-5
+        }else{
+            k <- 100 #else set to Seurat's default value
+        }
+        
         #split objects to allow for re-integration
         try(seu.obj[['RNA']] <- split(seu.obj[["RNA"]], f = seu.obj$orig.ident), silent = T)
     }
@@ -470,6 +477,7 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
     if(!runAllMethods){
         seu.obj <- IntegrateLayers(object = seu.obj, 
                                    method = noquote(method), 
+                                   k.weight = k,
                                    orig.reduction = "pca", 
                                    new.reduction = "integrated",
                                    normalization.method = normalization.method,
@@ -484,6 +492,7 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
         
         seu.obj <- IntegrateLayers(object = seu.obj, 
                                    method = CCAIntegration, 
+                                   k.weight = k,
                                    orig.reduction = "pca", 
                                    new.reduction = "integrated.cca",
                                    normalization.method = normalization.method,
@@ -493,6 +502,7 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
         gc()
         seu.obj <- IntegrateLayers(object = seu.obj, 
                                    method = HarmonyIntegration, 
+                                   k.weight = k,
                                    orig.reduction = "pca", 
                                    new.reduction = "integrated.harmony",
                                    normalization.method = normalization.method,
@@ -502,6 +512,7 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
         gc()
         seu.obj <- IntegrateLayers(object = seu.obj, 
                                    method = JointPCAIntegration, 
+                                   k.weight = k,
                                    orig.reduction = "pca", 
                                    new.reduction = "integrated.joint",
                                    normalization.method = normalization.method,
@@ -510,7 +521,8 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
 #                           reduction.name = "pca.joint")
         gc()
         seu.obj <- IntegrateLayers(object = seu.obj, 
-                                   method = RPCAIntegration, 
+                                   method = RPCAIntegration,
+                                   k.weight = k,
                                    orig.reduction = "pca", 
                                    new.reduction = "integrated.rcpa",
                                    normalization.method = normalization.method,
