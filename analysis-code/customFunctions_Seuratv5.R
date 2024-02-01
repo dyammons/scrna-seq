@@ -441,26 +441,26 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
             message("To run indReClus == TRUE you must provide an integrated Seurat object for the seu.obj argument.")
             break()
         }
-        
-        #if any sample has less than 30 cells. exlude the sample from downstream analysis
-        if(min(table(seu.obj$orig.ident)) < 30){
-            exclude <- as.data.frame(table(seu.obj$orig.ident)) %>% filter(Freq < 30) %>% pull(Var1)
-            seu.obj <- subset(seu.obj, invert = T, 
-                              subset = orig.ident %in% exclude)
-            seu.obj$orig.ident <- factor(seu.obj$orig.ident)
-        }
-        
-        #if any sample has less than 100 cells. modify k.weight to match the sample with the lowest number of cells
-        if(min(table(seu.obj$orig.ident)) < 100){
-            k <- min(table(seu.obj$orig.ident))-5
-        }else{
-            k <- 100 #else set to Seurat's default value
-        }
-        
         #split objects to allow for re-integration
         try(seu.obj[['RNA']] <- split(seu.obj[["RNA"]], f = seu.obj$orig.ident), silent = T)
     }
 
+    #if any sample has less than 30 cells. exlude the sample from downstream analysis
+    if(min(table(seu.obj$orig.ident)) < 30){
+        exclude <- as.data.frame(table(seu.obj$orig.ident)) %>% filter(Freq < 30) %>% pull(Var1)
+        seu.obj <- subset(seu.obj, invert = T, 
+                          subset = orig.ident %in% exclude)
+        seu.obj$orig.ident <- factor(seu.obj$orig.ident)
+    }
+
+    #if any sample has less than 100 cells. modify k.weight to match the sample with the lowest number of cells
+    if(min(table(seu.obj$orig.ident)) < 100){
+        k <- min(table(seu.obj$orig.ident))-5
+    }else{
+        k <- 100 #else set to Seurat's default value
+    }
+
+    
     if(normalization.method == "LogNormalize"){
         seu.obj <- seu.obj %>% NormalizeData() %>% FindVariableFeatures() %>% ScaleData %>% 
         RunPCA() %>% FindNeighbors(., dims = 1:30, reduction = "pca") %>% 
