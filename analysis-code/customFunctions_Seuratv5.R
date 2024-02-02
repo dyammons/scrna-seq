@@ -1277,9 +1277,9 @@ vilnSplitCompxGene <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp =
 getPb <- function(mat.sparse, bioRep) {
 
     #extract count sums for each cell within a biological replicate
-    collapsedCnts <- lapply(levels(bioRep$cellSource), function(rep){
+    collapsedCnts <- lapply(levels(bioRep$cellSource), function(repicate){
         
-        cells <- row.names(bioRep)[bioRep$cellSource == rep]
+        cells <- row.names(bioRep)[bioRep$cellSource == repicate]
         pseudobulk <- Matrix::rowSums(mat.sparse[ ,cells])
 
         return(pseudobulk)
@@ -1322,10 +1322,9 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
 
         if(length(zKeep) >= 0.5*ztest){
         
-            #remove samples that have insufficent cell numbers then normalize the data (normalization is not needed)
+            #remove samples that have insufficent cell numbers
             Idents(seu.sub) <- biologicalRep
             seu.sub.clean <- subset(seu.sub, idents = zKeep)
-            seu.sub.clean <- NormalizeData(seu.sub.clean)
     
             seu.sub.clean@meta.data[[biologicalRep]] <- as.factor(seu.sub.clean@meta.data[[biologicalRep]])
             seu.sub.clean@meta.data[[biologicalRep]] <- droplevels(seu.sub.clean@meta.data[[biologicalRep]])
@@ -1357,13 +1356,17 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
             #extract required data for pseudobulk conversion
             if(cnts){
 
-                mat <- seu.sub.clean@assays$RNA@counts
+                mat <- seu.obj@assays$RNA@layers$counts
 
             }else{
 
-                mat <- seu.sub.clean@assays$RNA@data
+                mat <- seu.obj@assays$RNA@layers$data
 
             }
+
+            #bring over gene sybmols and cell names
+            colnames(mat) <- colnames(seu.obj)
+            rownames(mat) <- rownames(seu.obj)
             
             #remove features that have less than 10 cells with a non-zero expression value
             if(lowFilter){
@@ -1371,6 +1374,7 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
                 mat <- mat[rowSums(mat > 1) >= 10, ]
 
             }
+                        
             
             #extract data needed to make pseudobulk matrix
             bioRep <- as.data.frame(seu.sub.clean@meta.data[[biologicalRep]])
@@ -1391,7 +1395,7 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
             #log the number of reps included
             if(length(colnames(pbj))-1 != ztest){
 
-                msg <- paste0("The following replicates were used for psudobluk conversion: ", as.list(colnames(pbj)))
+                msg <- paste0("INFO: During pseudobluk conversion of ", x, " the following samples were included: ", paste(as.list(colnames(pbj)),collapse=" "),"\nINFO: min.cell was set to: ", min.cell,"\n")
                 message(msg)
 
             } else {
@@ -1430,21 +1434,17 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
                       outDir = "", outName = "", idents.1_NAME = NULL, idents.2_NAME = NULL, returnDDS = F,
                       inDir = "", title = "", fromFile = T, meta = NULL, pbj = NULL, returnVolc = F, 
                       paired = F, pairBy = "", minimalOuts = F, saveSigRes = T, topn=c(20,20),
-                      filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, 
+                      filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, test.use = "Wald",
                       dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3
                      ){
 
     if(fromFile){
-
         files <- list.files(path = inDir, pattern="pb_matrix.csv", all.files=FALSE,full.names=FALSE)
         clusters <- unname(sapply(files, function(x) {unlist(strsplit(x, split = "_pb_"))[1]}))
         outfileBase <- paste0(outDir, outName, "_cluster_")
-
     }else{
-
         clusters <- outName
         outfileBase <- outDir
-
     }
 
     lapply(clusters, function(x) {
@@ -1455,48 +1455,37 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
 
             meta <- read.csv(file = metaPWD, row.names = 1)
             meta <- meta[meta$clusterID == x,]
+            meta[,colnames(meta)] <- lapply(meta[,colnames(meta)] , factor)
         }
-        
         if(mkDir){
             outDir <- paste0(outDir, "/", x, "/")
             dir.create(outDir)
             outfileBase <- paste0(outDir, outName, "_cluster_")
             }
-        
         if(paired){
-
             dds <- DESeqDataSetFromMatrix(round(pbj), 
                                           colData = meta,
                                           design = formula(paste0("~ groupID + ",noquote(pairBy))))
-
         }else{
-
             dds <- DESeqDataSetFromMatrix(round(pbj), 
                                           colData = meta,
                                           design = ~ groupID)
-
         }
-        
         if(returnDDS){
-
             return(dds)
-
         }
-        
+
         #transform and plot the data with PCA
         rld <- varianceStabilizingTransformation(dds, blind=TRUE)
 
         if(!minimalOuts){
-
             outfile <- paste0(outfileBase, x,"_pca.png")
-            print(outfile)
             p <- DESeq2::plotPCA(rld, intgroup = "groupID")
             ggsave(outfile, width = 7, height = 7)
             
             outfile <- paste0(outfileBase, x,"_pca2.png")
             p <- DESeq2::plotPCA(rld, intgroup = "sampleID")
             ggsave(outfile, width = 7, height = 7)
-            
         }
         
         #set up QC to evaluate treatment seperation by heatmap & plot
@@ -1509,49 +1498,54 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
             p <- pheatmap::pheatmap(rld_cor)
             ggsave(p, file = outfile)
         }
+        if(test.use == "LRT"){
+            if(paired){
+                dds <- DESeq(dds,
+                             test = "LRT",
+                             reduced = formula(paste0("~",noquote(pairBy)))
+                            )
+            } else{
+                dds <- DESeq(dds,
+                             test = "LRT",
+                             reduced = ~1)
+            }
+        } else if (test.use == "Wald"){
+            dds <- DESeq(dds)
+        } else {
+            message("\nERROR: test.use variable is not valid. Please specify Wald or LRT then try again.\n")
+            break
+        }
 
-        #run DESeq2 then plot dispersion estimates
-        dds <- DESeq(dds)
-        
         #extract Wald test results
-
         if(!is.null(idents.1_NAME) | !is.null(idents.2_NAME)){
             contrast <- c("groupID", idents.1_NAME, idents.2_NAME)
         }else{
             contrast <- c("groupID", unique(meta$groupID)[1], unique(meta$groupID)[2])
             print("Variables idents.1_NAME and/or idents.2_NAME not specify, this may impact directionality of contrast - confirm results are as expect and/or specify ident names.")
         }
-        
 
         #perform logFoldChange and shrinkage
         res <- results(dds, 
                        contrast = contrast,
                        alpha = padj_cutoff,
                        lfcThreshold = lfcCut,
-                       cooksCutoff=FALSE)
+                       cooksCutoff = FALSE)
         summary(res)
         
         res <- lfcShrink(dds, 
                          contrast = contrast,
                          res=res,
                          type="normal") #would prefer to use something other than normal
-        
-#         res <- lfcShrink(dds, 
-#                          coef = resultsNames(res)[1],
-#                          type="apeglm") #would prefer to use something other than normal
-        
+
         #extract the results and save as a .csv
         res_tbl <- res %>%
         data.frame() %>%
         rownames_to_column(var="gene") %>%
         as_tibble()
-        
         sig_res <- dplyr::filter(res_tbl, padj < padj_cutoff) %>%
         dplyr::arrange(padj)
-
         if(saveSigRes){
             sig_res$gs_base <- toupper(x)
-            
             write.csv(sig_res,
                       file = paste0(outfileBase, x,"_all_genes.csv"),
                       quote = FALSE,
@@ -1561,24 +1555,18 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
         #get nomarlized counts and plot top 20 DEGs
         normalized_counts <- counts(dds, 
                                     normalized = TRUE)
-
         top20_sig_genes <- sig_res %>%
         dplyr::arrange(padj) %>%
         dplyr::pull(gene) %>%
         head(n=20)
-
         top20_sig_norm <- data.frame(normalized_counts) %>%
         rownames_to_column(var = "gene") %>%
         dplyr::filter(gene %in% top20_sig_genes)
-
         gathered_top20_sig <- top20_sig_norm %>%
         gather(colnames(top20_sig_norm)[2:length(colnames(top20_sig_norm))], key = "samplename", value = "normalized_counts")
-
         gathered_top20_sig <- meta %>% inner_join(gathered_top20_sig, by = c("sampleID" = "samplename")) #need more metadata
     
         if(dim(gathered_top20_sig)[1] > 0){ 
-            
-            #plot with ggplot2
             if(!minimalOuts){
                 outfile <- paste0(outfileBase, x,"_genePlot.png")
                 p <- ggplot(gathered_top20_sig) +
@@ -1600,57 +1588,31 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
             sig_norm <- data.frame(normalized_counts) %>%
             rownames_to_column(var = "gene") %>%
             dplyr::filter(gene %in% sig_res$gene)
-
             rownames(sig_norm) <- sig_norm$gene
             colAnn <- as.data.frame(meta[,"groupID"], colname = "groupID")
             rownames(colAnn) <- meta[,"sampleID"]
             colnames(colAnn) <- "groupID"
-
             heat_colors <- brewer.pal(6, "YlOrRd")
 
-#             if(!minimalOuts){
-#                 outfile <- paste0(outfileBase, x,"_pheatmapComp.png")
-#                 p <- pheatmap(sig_norm[ , 2:length(colnames(sig_norm))], 
-#                               color = heat_colors, 
-#                               cluster_rows = FALSE, 
-#                               show_rownames = TRUE,
-#                               annotation = colAnn, 
-#                               #border_color = "grey", 
-#                               fontsize = 10, 
-#                               scale = "row", 
-#                               fontsize_row = 10, 
-#                               height = 20)    
-#                 ggsave(p, file = outfile)
-#             }
-
             #set threshold and flag data points then plot with ggplot
-            
             res_table_thres <- res_tbl %>% mutate(threshold = ifelse(padj < padj_cutoff & abs(log2FoldChange) >= lfcCut, 
                                             ifelse(log2FoldChange > lfcCut ,'Up','Down'),'Stable')
                                                  )
-            
             res_table_thres <- res_table_thres[!is.na(res_table_thres$padj),]
-
-
             res_table_thres.sortedByPval = res_table_thres[order(res_table_thres$padj),]
             res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl(filterTerm, res_table_thres.sortedByPval$gene),]
             top20_up <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Up",] %>%  do(head(., n=topn[1]))
             top20_down <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Down",] %>%  do(head(., n=topn[2]))
-
             res_table_thres <- res_table_thres %>% mutate(label = ifelse(gene %in% top20_up$gene | gene %in% top20_down$gene | gene %in% addLabs, gene, NA)
                          )
-        
             cntUp <- nrow(res[which(res$log2FoldChange > lfcCut & res$padj < padj_cutoff),])
             cntDwn <- nrow(res[which(res$log2FoldChange < -lfcCut & res$padj < padj_cutoff),])
-
             outfile <- paste0(outfileBase, x,"_volcano.png")
-            
             if(fromFile){
                 if(is.null(title)){
                     title <- paste0(idents.1_NAME, " vs ",idents.2_NAME, "within", x)
                 }
             }
-            
             p <- ggplot(data = res_table_thres,
                         aes(x = log2FoldChange, 
                             y = -log10(padj), 
@@ -1669,12 +1631,9 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
                   legend.title = element_blank()
                  )
             ggsave(p, file = outfile)
-            
             if(returnVolc){
                 return(p)
             }
-            
-
         }
     })
 }
