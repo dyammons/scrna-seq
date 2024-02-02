@@ -1528,22 +1528,19 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
         res <- results(dds, 
                        contrast = contrast,
                        alpha = padj_cutoff,
-                       lfcThreshold = lfcCut,
+#                        lfcThreshold = lfcCut, #this increases stringency
                        cooksCutoff = FALSE)
         summary(res)
         
         res <- lfcShrink(dds, 
                          contrast = contrast,
-                         res=res,
-                         type="normal") #would prefer to use something other than normal
+                         res = res,
+                         type = "normal") #would prefer to use something other than normal
 
         #extract the results and save as a .csv
-        res_tbl <- res %>%
-        data.frame() %>%
-        rownames_to_column(var="gene") %>%
-        as_tibble()
-        sig_res <- dplyr::filter(res_tbl, padj < padj_cutoff) %>%
-        dplyr::arrange(padj)
+        res_tbl <- res %>% data.frame() %>%
+        rownames_to_column(var="gene") %>% as_tibble()
+        sig_res <- res_tbl %>% filter(padj < padj_cutoff, abs(log2FoldChange) > lfcCut) %>% arrange(padj)
         if(saveSigRes){
             sig_res$gs_base <- toupper(x)
             write.csv(sig_res,
@@ -1555,13 +1552,9 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
         #get nomarlized counts and plot top 20 DEGs
         normalized_counts <- counts(dds, 
                                     normalized = TRUE)
-        top20_sig_genes <- sig_res %>%
-        dplyr::arrange(padj) %>%
-        dplyr::pull(gene) %>%
-        head(n=20)
+        top20_sig_genes <- sig_res %>% arrange(padj) %>% pull(gene) %>% head(n=20)
         top20_sig_norm <- data.frame(normalized_counts) %>%
-        rownames_to_column(var = "gene") %>%
-        dplyr::filter(gene %in% top20_sig_genes)
+        rownames_to_column(var = "gene") %>% filter(gene %in% top20_sig_genes)
         gathered_top20_sig <- top20_sig_norm %>%
         gather(colnames(top20_sig_norm)[2:length(colnames(top20_sig_norm))], key = "samplename", value = "normalized_counts")
         gathered_top20_sig <- meta %>% inner_join(gathered_top20_sig, by = c("sampleID" = "samplename")) #need more metadata
@@ -1586,8 +1579,7 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
             
             #extract sig DEGs based on normalized data and plot heat map
             sig_norm <- data.frame(normalized_counts) %>%
-            rownames_to_column(var = "gene") %>%
-            dplyr::filter(gene %in% sig_res$gene)
+            rownames_to_column(var = "gene") %>% filter(gene %in% sig_res$gene)
             rownames(sig_norm) <- sig_norm$gene
             colAnn <- as.data.frame(meta[,"groupID"], colname = "groupID")
             rownames(colAnn) <- meta[,"sampleID"]
