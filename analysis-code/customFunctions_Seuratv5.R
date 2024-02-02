@@ -2916,7 +2916,9 @@ ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./out
     write.table(markers,paste0(outDir,"markers.tsv"), quote=FALSE, sep='\t', row.names = F)
     
     if(!skipEXPR){
-        data.df <- as.data.frame(seu.obj@assays$RNA@data)
+        data.df <- as.data.frame(seu.obj@assays$RNA@layers$data)
+        colnames(data.df) <- colnames(seu.obj)
+        rownames(data.df) <- rownames(seu.obj)
         data.df <- rownames_to_column(data.df, "symbol")
         write.table(data.df, paste0(outDir,"exprMatrix.tsv"), quote=FALSE, sep='\t', row.names = F)
         R.utils::gzip(paste0(outDir,"exprMatrix.tsv"), overwrite = TRUE)
