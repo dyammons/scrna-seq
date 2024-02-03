@@ -397,15 +397,21 @@ load10x <- function(din = NULL, dout = NULL, outName = NULL, testQC = FALSE,
 #' @export save elbow plot under "_integrated_S2_elbow.png" file
 
 
-integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
-                          saveRDS = T, 
-                          outName = "",  dout = "../output/s2/",
-                          orig.reduction = "pca",
-                          normalization.method = "LogNormalize", 
-                          method = "CCAIntegration", runAllMethods = FALSE,
-                          indReClus = FALSE, seu.obj = NULL,
-                          read_h5 = FALSE
-                          
+integrateData <- function(
+    din = "../output/s1/", 
+    pattern = "_S1.rds",
+    saveRDS = T, 
+    outName = "",  
+    dout = "../output/s2/",
+    orig.reduction = "pca",
+    normalization.method = "LogNormalize", 
+    method = "CCAIntegration", 
+    runAllMethods = FALSE,
+    indReClus = FALSE, 
+    seu.obj = NULL,
+    read_h5 = FALSE,
+    k = 100, 
+    min.cell = 30
                         ) {
     
     options(future.globals.maxSize = 3e+09)
@@ -446,7 +452,7 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
     }
 
     #if any sample has less than 30 cells. exlude the sample from downstream analysis
-    if(min(table(seu.obj$orig.ident)) < 30){
+    if(min(table(seu.obj$orig.ident)) < min.cell){
         exclude <- as.data.frame(table(seu.obj$orig.ident)) %>% filter(Freq < 30) %>% pull(Var1)
         seu.obj <- subset(seu.obj, invert = T, 
                           subset = orig.ident %in% exclude)
@@ -454,10 +460,8 @@ integrateData <- function(din = "../output/s1/", pattern = "_S1.rds",
     }
 
     #if any sample has less than 100 cells. modify k.weight to match the sample with the lowest number of cells
-    if(min(table(seu.obj$orig.ident)) < 100){
+    if(k > min(table(seu.obj$orig.ident))){
         k <- min(table(seu.obj$orig.ident))-5
-    }else{
-        k <- 100 #else set to Seurat's default value
     }
 
     
