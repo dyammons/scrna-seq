@@ -1342,7 +1342,6 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
 
                 #identitfy sample with fewest number of cells
                 ds <- min(z$nCell[z$nCell > min.cell])
-
                 msg <- paste0("Downsampling cluster: ", x," at a level of ", ds, " cells per replicate.")
                 message(msg)
         
@@ -1350,18 +1349,13 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
                 Idents(seu.sub.clean) <- biologicalRep
                 set.seed(12)
                 seu.sub.clean <- subset(x = seu.sub.clean, downsample = ds)
-
             }
             
             #extract required data for pseudobulk conversion
             if(cnts){
-
                 mat <- seu.obj@assays$RNA@layers$counts
-
             }else{
-
                 mat <- seu.obj@assays$RNA@layers$data
-
             }
 
             #bring over gene sybmols and cell names
@@ -1370,53 +1364,35 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
             
             #remove features that have less than 10 cells with a non-zero expression value
             if(lowFilter){
-
                 mat <- mat[rowSums(mat > 1) >= 10, ]
-
             }
                         
-            
             #extract data needed to make pseudobulk matrix
             bioRep <- as.data.frame(seu.sub.clean@meta.data[[biologicalRep]])
             colnames(bioRep) <- "cellSource"
             row.names(bioRep) <- colnames(seu.sub.clean)
             bioRep$cellSource <- as.factor(bioRep$cellSource)
-
             #use custom function to convert to pseudobulk
             pbj <- getPb(mat, bioRep)
-            
             #optionally exclude features from conversion (HBM, PPBP, MT-, RPS- are feats to consider excluding)
             if(!is.null(featsTOexclude)){
-
                 pbj <- pbj[!rownames(pbj) %in% featsTOexclude, ]
-            
             }
-        
             #log the number of reps included
             if(length(colnames(pbj))-1 != ztest){
-
                 msg <- paste0("INFO: During pseudobluk conversion of ", x, " the following samples were included: ", paste(as.list(colnames(pbj)),collapse=" "),"\nINFO: min.cell was set to: ", min.cell,"\n")
                 message(msg)
-
             } else {
-                
                 msg <- "All replicates were used for psudobluk conversion"
                 message(msg)
-
             }
-            
             #save the matrix
             write.csv(pbj, file = paste0(outDir, x, "_pb_matrix.csv"))
-
         } else {
-
             msg <- paste0("Unable to downsample cluster: ", x, " due to insufficent cell numbers")
             message(msg)
-
         } 
-        
         return(z)
-        
     })
  
     #collect the metadata
@@ -1435,7 +1411,7 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
                       inDir = "", title = "", fromFile = T, meta = NULL, pbj = NULL, returnVolc = F, 
                       paired = F, pairBy = "", minimalOuts = F, saveSigRes = T, topn=c(20,20),
                       filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, test.use = "Wald",
-                      dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3
+                      dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, strict_lfc = F
                      ){
 
     if(fromFile){
@@ -1524,11 +1500,16 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
             print("Variables idents.1_NAME and/or idents.2_NAME not specify, this may impact directionality of contrast - confirm results are as expect and/or specify ident names.")
         }
 
+        if(strict_lfc){
+            lfcCut_strict <- lfcCut
+        } else{
+            lfcCut_strict <- 0
+        }
         #perform logFoldChange and shrinkage
         res <- results(dds, 
                        contrast = contrast,
                        alpha = padj_cutoff,
-#                        lfcThreshold = lfcCut, #this increases stringency
+                       lfcThreshold = lfcCut_strict, #this increases stringency
                        cooksCutoff = FALSE)
         summary(res)
         
@@ -1817,6 +1798,7 @@ vilnPlots <- function(seu.obj = NULL, inFile = NULL, groupBy = "clusterID", numO
         }     
         
         if (outputGeneList == TRUE){
+            dir.create(outDir)
             outfile <- paste0(outDir, outName, "_",  groupBy, "_gene_list.csv")
             write.csv(cluster.markers, file = outfile)
         }  
