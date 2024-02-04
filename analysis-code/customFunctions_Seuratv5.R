@@ -1616,7 +1616,7 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
 }
 ############ btwnClusDEG ############
 #work in progress             - need to to fix doLinDEG option ### NOTE: cannot have special char in ident name
-btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL, idents.2 = NULL, bioRep = "orig.ident",padj_cutoff = 0.05, lfcCut = 0.58, topn=c(20,20),
+btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL, idents.2 = NULL, bioRep = "orig.ident",padj_cutoff = 0.05, lfcCut = 0.58, topn=c(20,20), strict_lfc = F,
                         minCells = 25, outDir = "", title = NULL, idents.1_NAME = "", idents.2_NAME = "", returnVolc = F, doLinDEG = F, paired = T, addLabs = NULL, lowFilter = F, dwnSam = T, setSeed = 12, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3
                     ){
     
@@ -1681,7 +1681,7 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
     }
 
     #extract required data for pseudobulk conversion
-    mat <- seu.sub.clean@assays$RNA@counts
+    mat <- seu.sub.clean@assays$RNA$counts
     if(lowFilter){
         mat <- mat[rowSums(mat > 1) >= 10, ]
     }
@@ -1707,7 +1707,7 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
     }
     print(meta)
     p <- pseudoDEG(padj_cutoff = padj_cutoff, lfcCut = lfcCut, outName = paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME)), 
-              outDir = outDir, title = title, fromFile = F, meta = meta, pbj = pbj, returnVolc = returnVolc, paired = paired, pairBy = "bioRepPair",
+              outDir = outDir, title = title, fromFile = F, meta = meta, pbj = pbj, returnVolc = returnVolc, paired = paired, pairBy = "bioRepPair", strict_lfc = strict_lfc,
                    idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, saveSigRes = T, addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,upCol = upCol, labSize = labSize
                      )    
     return(p)
