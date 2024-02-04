@@ -1285,7 +1285,7 @@ getPb <- function(mat.sparse, bioRep) {
 
 createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSource", biologicalRep = "orig.ident",
                      clusters = NULL, outDir = "", min.cell = 25, lowFilter = F, dwnSam =T, featsTOexclude = NULL, cnts = T,
-                     grepTerm = NULL, grepLabel = NULL#improve - fix this so it is more functional
+                     grepTerm = NULL, grepLabel = NULL #improve - fix this so it is more functional
                     ){
 
 
@@ -1394,7 +1394,7 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
 # contrast will be idents.1_NAME vs idents.2_NAME !!!
 pseudoDEG <- function(metaPWD = "", metaPass = F, padj_cutoff = 0.1, lfcCut = 0.58, outDir = "", outName = "", idents.1_NAME = NULL, idents.2_NAME = NULL, returnDDS = F,
                      inDir = "", title = "", fromFile = T, meta = NULL, pbj = NULL, returnVolc = F, paired = F, pairBy = "", minimalOuts = F, saveSigRes = T, topn=c(20,20), degFormula = NULL,saveFullRes = F,
-                     filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3
+                     filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, strict_lfc = F
                      ){
     if(fromFile){
         files <- list.files(path = inDir, pattern="pb_matrix.csv", all.files=FALSE,full.names=FALSE)
@@ -1414,9 +1414,10 @@ pseudoDEG <- function(metaPWD = "", metaPass = F, padj_cutoff = 0.1, lfcCut = 0.
             
             if(!metaPass){
                 meta <- read.csv(file = metaPWD, row.names = 1)
+                meta[ ,colnames(meta)] <- lapply(meta[ ,colnames(meta)] , factor)
             }
             
-            meta <- meta[meta$clusterID == x,]
+            meta <- meta[meta$clusterID == x, ]
         }
         
         if(mkDir){
@@ -1424,7 +1425,6 @@ pseudoDEG <- function(metaPWD = "", metaPass = F, padj_cutoff = 0.1, lfcCut = 0.
             dir.create(outDir)
             outfileBase <- paste(outDir, outName, "_cluster_", sep = "")
             }
-        
         if(paired){
             dds <- DESeqDataSetFromMatrix(round(pbj), 
                                           colData = meta, ### add pt meta data here
@@ -1481,14 +1481,18 @@ pseudoDEG <- function(metaPWD = "", metaPass = F, padj_cutoff = 0.1, lfcCut = 0.
             contrast <- c("groupID", unique(meta$groupID)[1], unique(meta$groupID)[2])
             print("Variables idents.1_NAME and/or idents.2_NAME not specify, this may impact directionality of contrast - confirm results are as expect and/or specify ident names.")
         }
-        
-
+        if(strict_lfc){
+            lfcCut_strict <- lfcCut
+        } else{
+            lfcCut_strict <- 0
+        }
         #perform logFoldChange and shrinkage
         res <- results(dds, 
                        contrast = contrast,
                        alpha = padj_cutoff,
-                       lfcThreshold = lfcCut,
-                       cooksCutoff=FALSE)
+                       lfcThreshold = lfcCut_strict,
+#                        cooksCutoff=FALSE
+                      )
         summary(res)
         
         res <- lfcShrink(dds, 
@@ -1647,7 +1651,7 @@ pseudoDEG <- function(metaPWD = "", metaPass = F, padj_cutoff = 0.1, lfcCut = 0.
 }
 ############ btwnClusDEG ############
 #work in progress             - need to to fix doLinDEG option ### NOTE: cannot have special char in ident name
-btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL, idents.2 = NULL, bioRep = "orig.ident",padj_cutoff = 0.01, lfcCut = 0.5, topn=c(20,20),
+btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL, idents.2 = NULL, bioRep = "orig.ident",padj_cutoff = 0.01, lfcCut = 0.5, topn=c(20,20), strict_lfc = F,
                         minCells = 25, outDir = "", title = NULL, idents.1_NAME = "", idents.2_NAME = "", returnVolc = F, doLinDEG = F, paired = T, addLabs = NULL, lowFilter = F, dwnSam = T, setSeed = 12, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3
                     ){
     
@@ -1737,7 +1741,7 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
               )
     }
     print(meta)
-    p <- pseudoDEG(padj_cutoff = padj_cutoff, lfcCut = lfcCut, outName = paste(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME), sep = ""), 
+    p <- pseudoDEG(padj_cutoff = padj_cutoff, lfcCut = lfcCut, outName = paste(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME), sep = ""), strict_lfc = strict_lfc,
               outDir = outDir, title = title, fromFile = F, meta = meta, pbj = pbj, returnVolc = returnVolc, paired = paired, pairBy = "bioRepPair",
                    idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, saveSigRes = T, addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,upCol = upCol, labSize = labSize
                      )    
