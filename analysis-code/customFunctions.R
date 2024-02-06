@@ -1394,7 +1394,7 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
 # contrast will be idents.1_NAME vs idents.2_NAME !!!
 pseudoDEG <- function(metaPWD = "", metaPass = F, padj_cutoff = 0.1, lfcCut = 0.58, outDir = "", outName = "", idents.1_NAME = NULL, idents.2_NAME = NULL, returnDDS = F,
                      inDir = "", title = "", fromFile = T, meta = NULL, pbj = NULL, returnVolc = F, paired = F, pairBy = "", minimalOuts = F, saveSigRes = T, topn=c(20,20), degFormula = NULL,saveFullRes = F,
-                     filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, strict_lfc = F
+                     filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, strict_lfc = T
                      ){
     if(fromFile){
         files <- list.files(path = inDir, pattern="pb_matrix.csv", all.files=FALSE,full.names=FALSE)
@@ -2582,7 +2582,14 @@ prettyViln <- function(plot = NULL, colorData = NULL, nrow = 2, ncol = NULL){
 }
 
 ############ prettyVolc ############                                          
-prettyVolc <- function(plot = NULL, rightLab = NULL, leftLab = NULL, rightCol = "red", leftCol = "blue", arrowz = T
+prettyVolc <- function(
+    plot = NULL, 
+    rightLab = NULL, 
+    leftLab = NULL, 
+    rightCol = "red", 
+    leftCol = "blue", 
+    arrowz = T,
+    lfcCut = 0.58
                     ){
     
     p <- plot + scale_x_symmetric(mid = 0) + theme(legend.position = c(0.10, 0.9),
@@ -2598,7 +2605,7 @@ prettyVolc <- function(plot = NULL, rightLab = NULL, leftLab = NULL, rightCol = 
                                                       plot.title = element_blank()
                                                      ) + 
     {if(arrowz){
-        annotate("segment", x = 0.58*1.5, 
+        annotate("segment", x = lfcCut*1.25, 
                  y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
                  xend = c(max(abs(plot$data$log2FoldChange)),-max(abs(plot$data$log2FoldChange)))[1], 
                  yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
@@ -2607,7 +2614,7 @@ prettyVolc <- function(plot = NULL, rightLab = NULL, leftLab = NULL, rightCol = 
                 ) 
         }} +
     {if(arrowz){
-        annotate("segment", x = -0.58*1.5, 
+        annotate("segment", x = -lfcCut*1.25, 
                  y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
                  xend = c(max(abs(plot$data$log2FoldChange)),-max(abs(plot$data$log2FoldChange)))[2],
                  yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
@@ -2616,14 +2623,14 @@ prettyVolc <- function(plot = NULL, rightLab = NULL, leftLab = NULL, rightCol = 
                 )
         }} + 
     {if(!is.null(rightLab)){
-        annotate(geom = "text", x = (max(abs(plot$data$log2FoldChange))-0.58*1.5)/2+0.58*1.5, 
+        annotate(geom = "text", x = (max(abs(plot$data$log2FoldChange))-lfcCut*1.25)/2+lfcCut*1.25, 
                  y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.09,
                  label = rightLab,
                  hjust = 0.5,
                  size = 5)
         }} + 
     {if(!is.null(leftLab)){
-        annotate(geom = "text", x = -(max(abs(plot$data$log2FoldChange))-0.58*1.5)/2-0.58*1.5, 
+        annotate(geom = "text", x = -(max(abs(plot$data$log2FoldChange))-lfcCut*1.25)/2-lfcCut*1.25, 
                  y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.09,
                  label = leftLab,
                  hjust = 0.5,
