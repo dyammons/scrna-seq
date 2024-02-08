@@ -2821,10 +2821,14 @@ crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1
     
 
 ############ skewPlot ############
-skewPlot <- function(seu.obj = seu.obj
-                    ){
+skewPlot <- function(
+    seu.obj = seu.obj,
+    groupBy = NULL
+){
     
-    pct.df <- table(seu.obj$majorID_sub, seu.obj$name) %>% melt() %>% group_by(Var.2) %>% mutate(samN = sum(value))
+    if(!is.null(groupBy)){
+    
+    pct.df <- table(seu.obj@meta.data[[groupBy]], seu.obj$name) %>% melt() %>% group_by(Var.2) %>% mutate(samN = sum(value))
     pct.df$Var.1 <- as.factor(pct.df$Var.1)
     
     pct.df$pct <- pct.df$value/pct.df$samN*100
@@ -2865,6 +2869,9 @@ skewPlot <- function(seu.obj = seu.obj
                                                            values = brewer.pal(n = 3, name = "Dark2"),
                                                            name = "Uniqueness\nclassification")
     return(p)
+    } else{
+        message("groupBy formal is not specified, please enter the name of a valid metadata slot")
+    }
 }
     
     
