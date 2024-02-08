@@ -466,7 +466,7 @@ integrateData <- function(
 
     
     if(normalization.method == "LogNormalize"){
-        seu.obj <- seu.obj %>% NormalizeData() %>% FindVariableFeatures() %>% ScaleData %>% 
+        seu.obj <- seu.obj %>% NormalizeData() %>% FindVariableFeatures() %>% ScaleData() %>% 
         RunPCA() %>% FindNeighbors(., dims = 1:30, reduction = "pca") %>% 
         FindClusters(., resolution = 1, cluster.name = "unintegrated_clusters")
     } else if (normalization.method == "SCT"){
