@@ -400,7 +400,7 @@ load10x <- function(din = NULL, dout = NULL, outName = NULL, testQC = FALSE,
 integrateData <- function(
     din = "../output/s1/", 
     pattern = "_S1.rds",
-    saveRDS = T, 
+    saveRDS = F, 
     outName = "",  
     dout = "../output/s2/",
     orig.reduction = "pca",
@@ -1401,6 +1401,7 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
  
     #collect the metadata
     df <- do.call(rbind, test)
+    df <- na.omit(df)
     
     #save the metadata 
     csvOut <- paste0(outDir,groupBy ,"_deg_metaData.csv")
