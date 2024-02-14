@@ -1385,6 +1385,7 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
     })
     
     df <- do.call(rbind, test)
+    df <- na.omit(df)
     
     csvOut <- paste(outDir,groupBy ,"_deg_metaData.csv", sep = "")
     write.csv(df, file = csvOut)
