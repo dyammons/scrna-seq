@@ -567,7 +567,7 @@ integrateData <- function(
 #' @param vars.to.regress String; Variable(s) to regress during integration. The provided value must be stored in the metadata of all the Seurat objects to be integrated. Default is "percent.mt"
 #' @param z Numerical; Value passed to k.filter, k.score, and dims if integrating a(n) object(s) with < 200 cells in at least one of the samples. Manually modify the value to a number equal to the object with the fewest number of cells
 #' 
-#' @return An integrated Seurat object
+#' @return An integrated Seurat object (if requested using returnObj)
 #' @examples 
 #' @export optionally save "_S2.rds" file
 #' @export save elbow plot under "_integrated_S2_elbow.png" file
