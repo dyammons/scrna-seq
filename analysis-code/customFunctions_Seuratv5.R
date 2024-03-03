@@ -380,7 +380,7 @@ load10x <- function(din = NULL, dout = NULL, outName = NULL, testQC = FALSE,
 #' Integrate mulitple datasets into one
 #'
 #' @param din Path to directory containing the processed *_S1.rds files from the load10x function. Use realtive path.
-#' @param psttern string suffix that is used to search for file in din to load
+#' @param pattern string suffix that is used to search for file in din to load
 #' @param saveRDS logical; set to TRUE if you want to save an integrated RDS file
 #' @param outName Short name that will be incorporated into the output files
 #' @param dout the desired path to put figures and processed Seurat objects. Use realtive path.
@@ -549,6 +549,157 @@ integrateData <- function(
     
     return(seu.obj)
 }
+
+
+############ integrateData_v4 ############
+#' Integrate mulitple datasets into one using Seurat v3/v4 SCT+CCA integration workflow
+#'
+#' @param seu.list List of Seurat objects to integrate
+#' @param subName Short name that will be incorporated into the output files
+#' @param outDir the desired path to put figures and processed Seurat objects. Use realtive path
+#' @param featTOexclude If provided these features will be forced to be excluded from integration and dimension reduction
+#' @param varFeatsToUse If provided only these features used to complete integration and dimension reduction
+#' @param nfeatures Number of features to use for integration. Default is Seurat's default of 2000
+#' @param k Value passed to k.weight. Default is 100. This should only be used if working with a(n) object(s) with < 100 cells in at least one of the samples
+#' @param saveRDS Logical; If TRUE then a .rds file will be saved in outDir using subName in the name
+#' @param returnObj Logical; If TRUE then an integrated Seurat object will be returned
+#' @param ndims Numeric; Number of dimensions to use for PCA. Default is 50
+#' @param vars.to.regress String; Variable(s) to regress during integration. The provided value must be stored in the metadata of all the Seurat objects to be integrated. Default is "percent.mt"
+#' @param z Numerical; Value passed to k.filter, k.score, and dims if integrating a(n) object(s) with < 200 cells in at least one of the samples. Manually modify the value to a number equal to the object with the fewest number of cells
+#' 
+#' @return An integrated Seurat object (if requested using returnObj)
+#' @examples 
+#' @export optionally save "_S2.rds" file
+#' @export save elbow plot under "_integrated_S2_elbow.png" file
+integrateData_v4 <- function(
+    seu.list = NULL, 
+    subName = "", 
+    outDir = "", 
+    featTOexclude = NULL, 
+    varFeatsToUse = NULL, 
+    nfeatures = 2000, 
+    k = NULL, 
+    saveRDS = F, 
+    returnObj = T,
+    ndims = 50,
+    vars.to.regress = "percent.mt", 
+    z = 201
+) {
+    
+    message(paste0("The subclustered object will be output as: ", outDir, subName,"_S2.rds", sep = ""))
+    
+    options(future.globals.maxSize = 100000 * 1024^2)
+    
+    #read in data
+    seu.sub.list <- seu.list
+    k <- ifelse(is.null(k),100,k)
+    
+    if(is.null(varFeatsToUse)){
+        seu.obj <- lapply(seu.sub.list,
+                          SCTransform, 
+                          vars.to.regress = vars.to.regress,
+                          verbose = FALSE,
+                          conserve.memory=TRUE)
+    
+        SelectedFeatures <- SelectIntegrationFeatures(object.list = seu.obj,
+                                                      nfeatures = nfeatures) 
+    
+        if(!is.null(featTOexclude)){
+            SelectedFeatures <- SelectedFeatures[!SelectedFeatures %in% featTOexclude]
+            if(nfeatures != length(SelectedFeatures)){
+                message <- paste0("NOTE: ", featTOexclude, 
+                                  " was/were excluded from the variable features used in integration!")
+                print(message)
+                SelectedFeatures <- SelectIntegrationFeatures(object.list = seu.obj,
+                                                              nfeatures = nfeatures+(nfeatures-length(SelectedFeatures))
+                                                             )
+                SelectedFeatures <- SelectedFeatures[!SelectedFeatures %in% featTOexclude]
+            }else{
+                message(paste0("NOTE: The features to exclude (", featTOexclude, 
+                               ") was/were not included in the variable features used in integration, so the option was not used."))
+            }
+        }
+        
+        seu.integrated <- PrepSCTIntegration(object.list = seu.obj,
+                                            anchor.features = SelectedFeatures,
+                                            verbose = FALSE
+                                            )
+    }else{
+        seu.obj <- lapply(seu.sub.list,
+                          SCTransform, 
+                          vars.to.regress = vars.to.regress,
+                          verbose = FALSE,
+                          variable.features.n = nfeatures,
+                          return.only.var.genes = FALSE)
+        
+        seu.obj <- lapply(seu.obj, function(obj){
+            varKeep <- varFeatsToUse[varFeatsToUse %in% rownames(obj@assays$SCT@scale.data)]
+            obj@assays$SCT@scale.data = obj@assays$SCT@scale.data[varKeep, ]
+            obj@assays$SCT@var.features = varFeatsToUse
+            return(obj)
+        })
+        
+         varFeats <- lapply(seu.obj, function(obj){
+             varKeep <- varFeatsToUse[varFeatsToUse %in% rownames(obj@assays$SCT@scale.data)]
+             return(varKeep)
+         })
+        
+        SelectedFeatures <- Reduce(intersect, varFeats)
+        seu.integrated <- PrepSCTIntegration(object.list = seu.obj,
+                                             anchor.features = SelectedFeatures,
+                                             verbose = FALSE
+                                             )
+        
+    }
+
+    gc()
+
+    seu.integrated.anchors <- FindIntegrationAnchors(
+        object.list = seu.integrated,
+        normalization.method = "SCT",
+        anchor.features = SelectedFeatures,
+        dims = 1:ifelse(min(z)>30, 30, min(z)-1),
+        k.filter = ifelse(min(z)>200, 200, min(z)-1),
+        k.score = ifelse(min(z)>30, 30, min(z)-1)
+    )
+
+    #clean up environment a bit
+    rm(seu.sub)
+    rm(seu.sub.list)
+    rm(seu.obj)
+    rm(seu.integrated)
+    gc()
+
+    #integrate data and keep full gene set - still might not be retaining all genes
+    seu.integrated.obj <- IntegrateData(
+        anchorset = seu.integrated.anchors,
+        normalization.method = "SCT",
+        k.weight = k,
+        verbose = FALSE
+    )
+
+    #clean up environment a bit
+    rm(seu.integrated.anchors)
+    gc()
+
+    seu.integrated.obj <- RunPCA(seu.integrated.obj)
+
+    outfile <- paste(outDir, subName,"_S2_elbow.png", sep = "")
+    p <- ElbowPlot(seu.integrated.obj, ndims = ndims)
+    ggsave(outfile)
+
+    DefaultAssay(seu.integrated.obj) <- "integrated"
+
+    if(saveRDS){
+        outfile <- paste(outDir, subName,"_S2.rds", sep = "")
+        saveRDS(seu.integrated.obj, file = outfile)
+    }
+    
+    if(returnObj){
+        return(seu.integrated.obj)
+    }
+}
+
 
 ############ clusTree ############
 #' clusTree visualiziation
@@ -1415,7 +1566,7 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
                       outDir = "", outName = "", idents.1_NAME = NULL, idents.2_NAME = NULL, returnDDS = F,
                       inDir = "", title = "", fromFile = T, meta = NULL, pbj = NULL, returnVolc = F, 
                       paired = F, pairBy = "", minimalOuts = F, saveSigRes = T, topn=c(20,20),
-                      filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, test.use = "Wald",
+                      filterTerm = NULL, addLabs = NULL, mkDir = F, test.use = "Wald",
                       dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, strict_lfc = F
                      ){
 
@@ -1578,7 +1729,7 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
                                                  )
             res_table_thres <- res_table_thres[!is.na(res_table_thres$padj),]
             res_table_thres.sortedByPval = res_table_thres[order(res_table_thres$padj),]
-            res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl(filterTerm, res_table_thres.sortedByPval$gene),]
+            res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl(paste(filterTerm, collapse = "|"), res_table_thres.sortedByPval$gene),]
             top20_up <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Up",] %>%  do(head(., n=topn[1]))
             top20_down <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Down",] %>%  do(head(., n=topn[2]))
             res_table_thres <- res_table_thres %>% mutate(label = ifelse(gene %in% top20_up$gene | gene %in% top20_down$gene | gene %in% addLabs, gene, NA)
@@ -1618,7 +1769,7 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
 ############ btwnClusDEG ############
 #work in progress             - need to to fix doLinDEG option ### NOTE: cannot have special char in ident name
 btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL, idents.2 = NULL, bioRep = "orig.ident",padj_cutoff = 0.05, lfcCut = 0.58, topn=c(20,20), strict_lfc = F,
-                        minCells = 25, outDir = "", title = NULL, idents.1_NAME = "", idents.2_NAME = "", returnVolc = F, doLinDEG = F, paired = T, addLabs = NULL, lowFilter = F, dwnSam = T, setSeed = 12, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3
+                        minCells = 25, outDir = "", title = NULL, idents.1_NAME = "", idents.2_NAME = "", returnVolc = F, doLinDEG = F, paired = T, addLabs = NULL, lowFilter = F, dwnSam = T, setSeed = 12, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, filterTerm = NULL
                     ){
     
     seu.integrated.obj <- seu.obj
@@ -1709,7 +1860,7 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
     print(meta)
     p <- pseudoDEG(padj_cutoff = padj_cutoff, lfcCut = lfcCut, outName = paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME)), 
               outDir = outDir, title = title, fromFile = F, meta = meta, pbj = pbj, returnVolc = returnVolc, paired = paired, pairBy = "bioRepPair", strict_lfc = strict_lfc,
-                   idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, saveSigRes = T, addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,upCol = upCol, labSize = labSize
+                   idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, saveSigRes = T, addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,upCol = upCol, labSize = labSize, filterTerm = filterTerm
                      )    
     return(p)
 }
