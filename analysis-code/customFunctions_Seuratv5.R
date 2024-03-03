@@ -1565,7 +1565,7 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
                       outDir = "", outName = "", idents.1_NAME = NULL, idents.2_NAME = NULL, returnDDS = F,
                       inDir = "", title = "", fromFile = T, meta = NULL, pbj = NULL, returnVolc = F, 
                       paired = F, pairBy = "", minimalOuts = F, saveSigRes = T, topn=c(20,20),
-                      filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, test.use = "Wald",
+                      filterTerm = NULL, addLabs = NULL, mkDir = F, test.use = "Wald",
                       dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, strict_lfc = F
                      ){
 
@@ -1728,7 +1728,7 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
                                                  )
             res_table_thres <- res_table_thres[!is.na(res_table_thres$padj),]
             res_table_thres.sortedByPval = res_table_thres[order(res_table_thres$padj),]
-            res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl(filterTerm, res_table_thres.sortedByPval$gene),]
+            res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl(paste(filterTerm, collapse = "|"), res_table_thres.sortedByPval$gene),]
             top20_up <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Up",] %>%  do(head(., n=topn[1]))
             top20_down <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Down",] %>%  do(head(., n=topn[2]))
             res_table_thres <- res_table_thres %>% mutate(label = ifelse(gene %in% top20_up$gene | gene %in% top20_down$gene | gene %in% addLabs, gene, NA)
@@ -1768,7 +1768,7 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
 ############ btwnClusDEG ############
 #work in progress             - need to to fix doLinDEG option ### NOTE: cannot have special char in ident name
 btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL, idents.2 = NULL, bioRep = "orig.ident",padj_cutoff = 0.05, lfcCut = 0.58, topn=c(20,20), strict_lfc = F,
-                        minCells = 25, outDir = "", title = NULL, idents.1_NAME = "", idents.2_NAME = "", returnVolc = F, doLinDEG = F, paired = T, addLabs = NULL, lowFilter = F, dwnSam = T, setSeed = 12, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3
+                        minCells = 25, outDir = "", title = NULL, idents.1_NAME = "", idents.2_NAME = "", returnVolc = F, doLinDEG = F, paired = T, addLabs = NULL, lowFilter = F, dwnSam = T, setSeed = 12, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, filterTerm = NULL
                     ){
     
     seu.integrated.obj <- seu.obj
@@ -1859,7 +1859,7 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
     print(meta)
     p <- pseudoDEG(padj_cutoff = padj_cutoff, lfcCut = lfcCut, outName = paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME)), 
               outDir = outDir, title = title, fromFile = F, meta = meta, pbj = pbj, returnVolc = returnVolc, paired = paired, pairBy = "bioRepPair", strict_lfc = strict_lfc,
-                   idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, saveSigRes = T, addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,upCol = upCol, labSize = labSize
+                   idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, saveSigRes = T, addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,upCol = upCol, labSize = labSize, filterTerm = filterTerm
                      )    
     return(p)
 }
