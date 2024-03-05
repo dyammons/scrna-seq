@@ -2824,16 +2824,19 @@ crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1
 ############ skewPlot ############
 skewPlot <- function(
     seu.obj = seu.obj,
-    groupBy = NULL
+    groupBy = NULL,
+    sampleRep = "orig.ident",
+    grepTerm = "tumor",
+    grepRes = c("TILs","Blood")
 ){
     
     if(!is.null(groupBy)){
     
-    pct.df <- table(seu.obj@meta.data[[groupBy]], seu.obj$name) %>% melt() %>% group_by(Var.2) %>% mutate(samN = sum(value))
+    pct.df <- table(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[[sampleRep]]) %>% melt() %>% group_by(Var.2) %>% mutate(samN = sum(value))
     pct.df$Var.1 <- as.factor(pct.df$Var.1)
     
     pct.df$pct <- pct.df$value/pct.df$samN*100
-    pct.df$cellSource <- ifelse(grepl("tils",pct.df$Var.2),"TILs","Blood")
+    pct.df$cellSource <- ifelse(grepl(grepTerm, pct.df$Var.2), grepRes[1], grepRes[2]) 
 
     statz <- compare_means(pct ~ cellSource, group.by = "Var.1", pct.df)
 
