@@ -1311,12 +1311,9 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
             #remove samples that have insufficent cell numbers then normalize the data
             Idents(seu.sub) <- biologicalRep
             seu.sub.clean <- subset(seu.sub, idents = zKeep)
-            seu.sub.clean <- NormalizeData(seu.sub.clean)
-    
             
             seu.sub.clean@meta.data[[biologicalRep]] <- as.factor(seu.sub.clean@meta.data[[biologicalRep]])
             seu.sub.clean@meta.data[[biologicalRep]] <- droplevels(seu.sub.clean@meta.data[[biologicalRep]])
-            
             
             z <- table(seu.sub.clean@meta.data[[biologicalRep]])
             
@@ -1343,6 +1340,7 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
             if(cnts){
                 mat <- seu.sub.clean@assays$RNA@counts
             }else{
+                seu.sub.clean <- NormalizeData(seu.sub.clean)
                 mat <- seu.sub.clean@assays$RNA@data
             }
             
