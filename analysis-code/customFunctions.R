@@ -2645,7 +2645,8 @@ prettyVolc <- function(
 
 plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
                      category = "C5", species = "dog", upCol = "red", dwnCol = "blue", saveRes = NULL,
-                     pvalueCutoff = 0.05, subcategory = NULL, termsTOplot = 8, upOnly = F, trimTerm = T, size = 4
+                     pvalueCutoff = 0.05, subcategory = NULL, termsTOplot = 8, upOnly = F, trimTerm = T, size = 4,
+                     trunkTerm = F
                     ){
     if(!is.null(pwdTOgeneList)){
         geneLists <- read.csv(pwdTOgeneList)
@@ -2703,8 +2704,9 @@ plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
         enriched$Description <- gsub("ANTIGEN_PROCESSING_&_", "", enriched$Description)
         enriched$Description <- gsub("ADAPTIVE_IMMUNE_RESPONSE_BASED_ON_SOMATIC_RECOMBINATION_OF_IMMUNE_RECEPTORS_BUILT_FROM_IMMUNOGLOBULIN_SUPERFAMILY_DOMAINS", "ADAPTIVE_IMMUNE_RESPONSE_BASED_ON_SOMATIC_RECOMBINATION", enriched$Description)
         enriched$Description <- gsub("PROTON_TRANSPORTING_ATP_SYNTHASE_ACTIVITY_ROTATIONAL_MECHANISM", "PROTON_TRANSPORTING_ATP_SYNTHASE_ACTIVITY", enriched$Description)
-        
-#         enriched$Description <- unlist(lapply(enriched$Description, str_trunc, width = 50, side = "right", ellipsis = "*")) ### TO DO: this causes problems if trunc results in the same string -- need to ensure that is handled before adding this back in
+        if(trunkTerm){
+            enriched$Description <- unlist(lapply(enriched$Description, str_trunc, width = 50, side = "right", ellipsis = "*")) ### TO DO: this causes problems if trunc results in the same string -- need to ensure that is handled before adding this back in
+        }
     }
     
     #remove NAs and then plot
@@ -2825,52 +2827,77 @@ skewPlot <- function(
     groupBy = NULL,
     sampleRep = "orig.ident",
     grepTerm = "tumor",
-    grepRes = c("TILs","Blood")
+    grepRes = c("TILs","Blood"),
+    outDir = "../output/",
+    outName = "",
+    saveSigRes = T
 ){
     
     if(!is.null(groupBy)){
-    
-    pct.df <- table(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[[sampleRep]]) %>% melt() %>% group_by(Var.2) %>% mutate(samN = sum(value))
-    pct.df$Var.1 <- as.factor(pct.df$Var.1)
-    
-    pct.df$pct <- pct.df$value/pct.df$samN*100
-    pct.df$cellSource <- ifelse(grepl(grepTerm, pct.df$Var.2), grepRes[1], grepRes[2]) 
+        
+        #get data
+        pct.df <- table(seu.obj@meta.data[[groupBy]], 
+                        seu.obj@meta.data[[sampleRep]]) %>% melt() %>% group_by(Var.2) %>% mutate(samN = sum(value))
+        
+        #clean data
+        pct.df$Var.1 <- as.factor(pct.df$Var.1)
+        pct.df$pct <- pct.df$value/pct.df$samN*100
+        pct.df$cellSource <- ifelse(grepl(grepTerm, pct.df$Var.2), grepRes[1], grepRes[2]) 
 
-    statz <- compare_means(pct ~ cellSource, group.by = "Var.1", pct.df)
+        #run stats
+        statz <- compare_means(pct ~ cellSource, group.by = "Var.1", pct.df)
 
-    status <- pct.df %>% group_by(Var.1,cellSource) %>% summarize(med = median(pct)) %>% spread(cellSource,med) %>% left_join(statz[c("Var.1","p.adj")], by = "Var.1") %>% mutate(lfc = abs(log2(TILs/Blood)),
-    lab_col=case_when(lfc >= 3 & p.adj < 0.05 ~ "Unique",
-                      p.adj < 0.05 & lfc < 3 ~ "Skewed",
-                      p.adj > 0.05 ~ "Common")) %>% select(Var.1,lab_col) %>% as.data.frame()
+        if(saveSigRes){
+            sig.df <- pct.df %>% 
+            group_by(
+                Var.1, cellSource
+            ) %>% 
+            summarize(
+                MEAN = mean(pct),
+                MEDIAN = median(pct),
+                SD = sd(pct),
+                MIN = min(pct),
+                MAX = max(pct)
+            ) %>% 
+            left_join(statz, by = "Var.1")
+            
+            outFile <- paste(outDir, outName, "_cluster_", sep = "")
+            write.csv(sig.df, file = paste0(outDir, "/", outName, "_skewPlot_stats.csv"))
+        }
 
-    pct.df <- pct.df %>% left_join(status, by = "Var.1")
+        status <- pct.df %>% group_by(Var.1,cellSource) %>% summarize(med = median(pct)) %>% spread(cellSource,med) %>% left_join(statz[c("Var.1","p.adj")], by = "Var.1") %>% mutate(lfc = abs(log2(TILs/Blood)),
+        lab_col=case_when(lfc >= 3 & p.adj < 0.05 ~ "Unique",
+                          p.adj < 0.05 & lfc < 3 ~ "Skewed",
+                          p.adj > 0.05 ~ "Common")) %>% select(Var.1,lab_col) %>% as.data.frame()
 
-    pct.df$lab_col <- as.factor(pct.df$lab_col)
-    
-    p <- ggplot(pct.df, aes(x = Var.1, y = pct, fill = lab_col)) +
-    stat_summary(fun = mean, geom = "bar", width = 0.7) +
-    stat_summary(fun.data = mean_se, geom = "errorbar",width = 0) + 
-    scale_y_continuous(limits = c(0, 100), expand = expansion(mult = c(0, 0))) + 
-    labs(x = "Cell type", y = "Percent total") +
-    theme(
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        text = element_text(colour = "black"),
-        plot.title = element_text(face = "bold", hjust = 0.5),
-        axis.line = element_line(colour="black"),
-        axis.ticks = element_line(colour="black"),
-        axis.title = element_text(face = "bold"),
-        axis.title.y = element_text(angle = 90, vjust = 2),
-        axis.title.x = element_blank(),
-        axis.text = element_text(face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-        plot.background = element_blank()
-  ) + facet_wrap("cellSource", nrow = 2) + scale_fill_manual(labels = c("Common","Skewed","Unique"),
-                                                           values = brewer.pal(n = 3, name = "Dark2"),
-                                                           name = "Uniqueness\nclassification")
-    return(p)
+        pct.df <- pct.df %>% left_join(status, by = "Var.1")
+
+        pct.df$lab_col <- as.factor(pct.df$lab_col)
+
+        p <- ggplot(pct.df, aes(x = Var.1, y = pct, fill = lab_col)) +
+        stat_summary(fun = mean, geom = "bar", width = 0.7) +
+        stat_summary(fun.data = mean_se, geom = "errorbar",width = 0) + 
+        scale_y_continuous(limits = c(0, 100), expand = expansion(mult = c(0, 0))) + 
+        labs(x = "Cell type", y = "Percent total") +
+        theme(
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank(),
+            text = element_text(colour = "black"),
+            plot.title = element_text(face = "bold", hjust = 0.5),
+            axis.line = element_line(colour="black"),
+            axis.ticks = element_line(colour="black"),
+            axis.title = element_text(face = "bold"),
+            axis.title.y = element_text(angle = 90, vjust = 2),
+            axis.title.x = element_blank(),
+            axis.text = element_text(face = "bold"),
+            axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+            plot.background = element_blank()
+      ) + facet_wrap("cellSource", nrow = 2) + scale_fill_manual(labels = c("Common","Skewed","Unique"),
+                                                               values = brewer.pal(n = 3, name = "Dark2"),
+                                                               name = "Uniqueness\nclassification")
+        return(p)
     } else{
         message("groupBy formal is not specified, please enter the name of a valid metadata slot")
     }
