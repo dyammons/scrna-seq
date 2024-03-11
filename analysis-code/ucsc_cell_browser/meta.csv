@@ -1,0 +1,4 @@
+allCells,majorID_pertyName,"All_cells"
+myeloid,majorID_sub,"Myeloid_subset"
+tcell,majorID_sub,"T_cell_subset"
+duod,majorID_sub,"Epithelial_subset"
