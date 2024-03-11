@@ -720,12 +720,13 @@ clusTree <- function(seu.obj = NULL,
                      test_dims = c(50,45,40,35), 
                      resolution = c(0.01, 0.05, 0.1, seq(0.2, 2, 0.1)), 
                      algorithm = 3, 
-                     prefix = "integrated_snn_res."
+                     prefix = "integrated_snn_res.",
+                     reduction = "integrated"
                     ) {
     
     for (dimz in test_dims){
 
-        seu.test <- FindNeighbors(object = seu.obj, dims = 1:dimz)
+        seu.test <- FindNeighbors(object = seu.obj, reduction = reduction, dims = 1:dimz)
         seu.test <- FindClusters(object = seu.test, algorithm = algorithm, resolution = resolution)
         
         p <- clustree::clustree(seu.test, prefix = prefix) + ggtitle(paste0("The number of dims used:", dimz))
@@ -834,11 +835,11 @@ dataVisUMAP <- function(file = NULL, seu.obj = NULL,
 
 ############ prettyFeats ############
 
-prettyFeats <- function(seu.obj = NULL, nrow = 3, ncol = NULL, features = "", color = "black", order = FALSE, titles = NULL, noLegend = F, bottomLeg = F, min.cutoff = NA, pt.size = NULL, title.size = 18, legJust = "bottom",showAxis = F,smallAxis=F, legInLine = F, reduction = "umap"
+prettyFeats <- function(seu.obj = NULL, nrow = 3, ncol = NULL, features = "", color = "black", order = FALSE, titles = NULL, noLegend = F, bottomLeg = F, min.cutoff = NA, pt.size = NULL, title.size = 18, legJust = "bottom",showAxis = F,smallAxis=F, legInLine = F, reduction = "umap", highCol = "darkblue"
                        ) {
     
     DefaultAssay(seu.obj) <- "RNA"
-    features <- features[features %in% c(unlist(rownames(seu.obj)),unlist(colnames(seu.obj@meta.data)))]
+#     features <- features[features %in% c(unlist(rownames(seu.obj)),unlist(colnames(seu.obj@meta.data)))]
     
     if(is.null(ncol)){
         ncol = ceiling(sqrt(length(features)))
@@ -858,7 +859,7 @@ prettyFeats <- function(seu.obj = NULL, nrow = 3, ncol = NULL, features = "", co
                        title = element_text(size= title.size, colour = y),
                        legend.position = "none"
                       ) + 
-                 scale_color_gradient(breaks = pretty_breaks(n = 3), limits = c(NA, NA), low = "lightgrey", high = "darkblue") + 
+                 scale_color_gradient(breaks = pretty_breaks(n = 3), limits = c(NA, NA), low = "lightgrey", high = highCol) + 
                  ggtitle(z), x = features, y = color, z = titles) 
 
 
@@ -886,7 +887,7 @@ prettyFeats <- function(seu.obj = NULL, nrow = 3, ncol = NULL, features = "", co
               panel.grid.major = element_blank(), 
               panel.grid.minor = element_blank()
              ) + 
-        scale_color_gradient(breaks = pretty_breaks(n = 1), labels = c("low", "high"), limits = c(0,1), low = "lightgrey", high = "darkblue") + 
+        scale_color_gradient(breaks = pretty_breaks(n = 1), labels = c("low", "high"), limits = c(0,1), low = "lightgrey", high = highCol) + 
         guides(color = guide_colourbar(barwidth = 1)) 
         
         if(bottomLeg){
@@ -1137,7 +1138,17 @@ formatUMAP <- function(plot = NULL, smallAxes = F) {
 
 ############ cusLabels ############
 #this function requires a UMAP plot gerneated using DimPlot with label = T, label.box = T
-cusLabels <- function(plot = NULL, shape = 21, labCol = "black", size = 8, alpha = 1, rm.na = T, nudge_x = NULL, nudge_y = NULL, textSize = 4, smallAxes = FALSE
+cusLabels <- function(
+    plot = NULL, 
+    shape = 21, 
+    labCol = "black", 
+    size = 8, 
+    alpha = 1, 
+    rm.na = T, 
+    nudge_x = NULL, 
+    nudge_y = NULL, 
+    textSize = 4, 
+    smallAxes = FALSE
                   ) {
     
     #extract label coords and colors
@@ -2229,7 +2240,7 @@ majorDot <- function(seu.obj = NULL, groupBy = "",
                                            
 autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
                      MIN_LOGFOLD_CHANGE = 0.5, MIN_PCT_CELLS_EXPR_GENE = 0.1,
-                    filterTerm = "ENSCAFG"
+                    filterTerm = "ENSCAFG", n_feat = 5
                     ){
     
     if(!is.null(file)){
@@ -2244,7 +2255,7 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
     key.genes <- all.markers[!grepl(paste(filterTerm,collapse="|"), all.markers$gene),] 
     key.genes.sortedByPval = key.genes[order(key.genes$p_val),]
 
-    features <- key.genes.sortedByPval %>%  group_by(cluster) %>% do(head(., n=5))
+    features <- key.genes.sortedByPval %>%  group_by(cluster) %>% do(head(., n=n_feat))
     features <- as.data.frame(features[!duplicated(features$gene),])
 
     #features_cnt <- features %>% count(cluster)
@@ -2975,7 +2986,7 @@ skewPlot <- function(seu.obj = seu.obj
 ############ ExportToCB_cus ############
 
 #need to update to get barcode in first column
-ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./output/", markers = NULL, reduction = "umap", test = F, skipEXPR=F, colsTOkeep=NULL,
+ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./output/", markers = NULL, reduction = "umap", test = F, skipEXPR = F, colsTOkeep = NULL,
                            feats = c("PTPRC", "CD3E", "CD8A", "GZMA", 
                                      "IL7R", "ANPEP", "FLT3", "DLA-DRA", 
                                      "CD4", "MS4A1", "PPBP","HBM")
@@ -3015,7 +3026,7 @@ ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./out
     
     data.df <- as.data.frame(seu.obj[[reduction]]@cell.embeddings)
     data.df <- rownames_to_column(data.df, "barcode")
-    write.table(data.df,paste0(outDir,reduction,".coords.tsv"), quote=FALSE, sep='\t', row.names = F)
+    write.table(data.df,paste0(outDir,"umap.coords.tsv"), quote=FALSE, sep='\t', row.names = F)
     
 }
 
