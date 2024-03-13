@@ -3068,3 +3068,39 @@ convertTOclusID <- function(
     seu.obj@meta.data[newMetaName] <- Idents(seu.obj)
     return(seu.obj)
 }
+
+
+############ cleanMeta ############
+#' Remove extra metadata slots to tidy up Seurat object
+#'
+#' @param seu.obj Seurat object to process
+#' @param metaSlot_keep Optional list of column names to keep. If specified this will be the only parameter used
+#' @param metaSlot_remove Optional list of column names to discard.
+#' @param grepTerms Optional list of terms to search for in metadata columns to then discard.
+#'
+#' @return Seurat object with cleaned metadata
+#' @examples 
+#' @export cleanMeta(seu.obj)
+
+cleanMeta <- function(
+    seu.obj = seu.obj, 
+    metaSlot_keep = NULL,
+    metaSlot_remove = NULL,
+    grepTerms = c("DF", "pANN", "snn_res")
+){
+    if(!is.null(metaSlot_keep)){
+        seu.obj@meta.data <- seu.obj@meta.data %>% 
+            select(all_of(metaSlot_keep))
+    } else{
+        seu.obj@meta.data <- seu.obj@meta.data[ ,!grepl(paste(grepTerms, 
+                                                          collapse = "|"), colnames(seu.obj@meta.data))]
+        
+        seu.obj@meta.data <- seu.obj@meta.data %>% 
+            select(all_of(colnames(seu.obj@meta.data)[!colnames(seu.obj@meta.data) %in% metaSlot_remove]))
+    }
+    
+    
+    return(seu.obj)
+}
+
+
