@@ -80,7 +80,9 @@ gg_color_hue <- function(n) {
 load10x <- function(din = NULL, dout = NULL, outName = NULL, testQC = FALSE,
                     nFeature_RNA_high = 4500, nFeature_RNA_low = 200, 
                     nCount_RNA_high = 20000, nCount_RNA_low = 100, 
-                    percent.mt_high = 10, mt_pattern = "^MT-",
+                    percent.mt_high = 10, 
+                    mt_pattern = "^MT-",
+                    mt_feats = NULL,
                     nfeatures = 2000,
                     removeDubs = TRUE, removeRBC_pal = FALSE, 
                     pal_feats = NULL, isolatePalRBC = FALSE,
@@ -127,15 +129,18 @@ load10x <- function(din = NULL, dout = NULL, outName = NULL, testQC = FALSE,
                                       min.features = 200)
 
         #add mitochondrial/hemoglobin/pal QC data to seurat metadata
-        seu.obj[["percent.mt"]] <- PercentageFeatureSet(seu.obj, pattern = mt_pattern)
+        if(is.null(mt_feats)){
+            seu.obj[["percent.mt"]] <- PercentageFeatureSet(seu.obj, pattern = mt_pattern)
+        } else{
+            seu.obj[["percent.mt"]] <- PercentageFeatureSet(seu.obj, features = mt_feats)
+        }
+        
         seu.obj[["percent.hbm"]] <- PercentageFeatureSet(seu.obj, pattern = "HBM")
         seu.obj[["percent.ppbp"]] <- PercentageFeatureSet(seu.obj, pattern = "PPBP")
         
         #if list of pal associated features is provided, use the sum of all features to calc "percent.pal"
-        if(!is.null(pal_feats)){            
-            data <- lapply(pal_feats, function(x){PercentageFeatureSet(seu.obj, pattern = x)})
-            data <- as.data.frame(bind_cols(data))
-            seu.obj[["percent.pal"]] <- rowSums(data)
+        if(!is.null(pal_feats)){
+            seu.obj[["percent.pal"]] <- PercentageFeatureSet(seu.obj, features = pal_feats)
         }
     
         #visualize QC metrics as a violin plot
