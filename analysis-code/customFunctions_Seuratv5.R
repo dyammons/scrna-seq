@@ -844,7 +844,7 @@ prettyFeats <- function(seu.obj = NULL, nrow = 3, ncol = NULL, features = "", co
                        ) {
     
     DefaultAssay(seu.obj) <- "RNA"
-#     features <- features[features %in% c(unlist(rownames(seu.obj)),unlist(colnames(seu.obj@meta.data)))]
+     features <- features[features %in% c(unlist(rownames(seu.obj)),unlist(colnames(seu.obj@meta.data)))]
     
     if(is.null(ncol)){
         ncol = ceiling(sqrt(length(features)))
@@ -2227,7 +2227,7 @@ majorDot <- function(seu.obj = NULL, groupBy = "",
             legend.key.size = unit(1, "line"),
             panel.border = element_rect(color = "black",
                                         fill = NA,
-                                        size = 1),
+                                        linewidth = 1),
             ) +
       scale_colour_viridis(option="magma", name='Average\nexpression') +
       guides(size=guide_legend(override.aes = list(shape=21, colour="black", fill="white"),
