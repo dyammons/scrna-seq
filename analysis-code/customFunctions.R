@@ -1391,10 +1391,39 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
                        
 ############ pseudoDEG ############
 # contrast will be idents.1_NAME vs idents.2_NAME !!!
-pseudoDEG <- function(metaPWD = "", metaPass = F, padj_cutoff = 0.1, lfcCut = 0.58, outDir = "", outName = "", idents.1_NAME = NULL, idents.2_NAME = NULL, returnDDS = F,
-                     inDir = "", title = "", fromFile = T, meta = NULL, pbj = NULL, returnVolc = F, paired = F, pairBy = "", minimalOuts = F, saveSigRes = T, topn=c(20,20), degFormula = NULL,saveFullRes = F,
-                     filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, strict_lfc = T
-                     ){
+pseudoDEG <- function(
+    metaPWD = "", 
+    metaPass = F, 
+    padj_cutoff = 0.1, 
+    lfcCut = 0.58, 
+    outDir = "", 
+    outName = "", 
+    idents.1_NAME = NULL, 
+    idents.2_NAME = NULL, 
+    returnDDS = F,
+    inDir = "",
+    title = "",
+    fromFile = T,
+    meta = NULL,
+    pbj = NULL,
+    returnVolc = F,
+    paired = F,
+    pairBy = "", 
+    minimalOuts = F,
+    saveSigRes = T,
+    topn=c(20,20),
+    degFormula = NULL,
+    saveFullRes = F,
+    filterTerm = "^ENSCAF",
+    addLabs = NULL,
+    mkDir = F,
+    dwnCol = "blue",
+    stblCol = "grey",
+    upCol = "red",
+    labSize = 3,
+    strict_lfc = T
+    featuresToExclude = NULL
+    ){
     if(fromFile){
         files <- list.files(path = inDir, pattern="pb_matrix.csv", all.files=FALSE,full.names=FALSE)
         clusters <- unname(sapply(files, function(x) {unlist(strsplit(x, split = "_pb_"))[1]}))
@@ -1408,7 +1437,7 @@ pseudoDEG <- function(metaPWD = "", metaPass = F, padj_cutoff = 0.1, lfcCut = 0.
     lapply(clusters, function(x) {
         if(fromFile){
             inFile <- paste(inDir, x,"_pb_matrix.csv", sep = "")
-            pbj <- read.csv(file = inFile, row.names = 1) #will likely want to remove alll rbc/platlet related genes
+            pbj <- read.csv(file = inFile, row.names = 1)
             pbj <- pbj[!apply(pbj==0, 1, all),]
             
             if(!metaPass){
@@ -2676,14 +2705,26 @@ prettyVolc <- function(
 ############ plotGSEA ############
 #TO DO:L fix problem with trimTerm
 
-plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
-                     category = "C5", species = "dog", upCol = "red", dwnCol = "blue", saveRes = NULL,
-                     pvalueCutoff = 0.05, subcategory = NULL, termsTOplot = 8, upOnly = F, trimTerm = T, size = 4,
-                     trunkTerm = F
-                    ){
+plotGSEA <- function(
+    pwdTOgeneList = NULL, 
+    geneList = NULL, 
+    geneListDwn = NULL,
+    category = "C5", 
+    species = "dog", 
+    upCol = "red", 
+    dwnCol = "blue", 
+    saveRes = NULL,
+    pvalueCutoff = 0.05, 
+    subcategory = NULL, 
+    termsTOplot = 8, 
+    upOnly = F, 
+    trimTerm = T, 
+    size = 4,
+    trunkTerm = F
+    ){
+    
     if(!is.null(pwdTOgeneList)){
         geneLists <- read.csv(pwdTOgeneList)
-        
         geneListUp <- geneLists %>% arrange(padj) %>% filter(log2FoldChange > 0) %>% .$gene
         geneListDwn <- geneLists %>% arrange(padj) %>% filter(log2FoldChange < 0) %>% .$gene
         
@@ -2691,7 +2732,6 @@ plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
         geneListUp <- geneList
     }
     
-
     
     can_gene_sets <- as.data.frame(msigdbr(species = species, category = category, subcategory = subcategory))
     msigdbr_list <- split(x = can_gene_sets$gene_symbol, f = can_gene_sets$gs_name)
@@ -2855,13 +2895,38 @@ crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1
     
 
 ############ skewPlot ############
+#' Compare abundances within each cell types between two conditions
+#'
+#' 
+#'
+#' @param seu.obj variable; Seurat object to plot data from.
+#' @param dout string; Path to put figures and processed Seurat objects. Use relative path.
+#' @param outName string; Short name that will be incorporated into the output files.
+#' @param sampleRep string; Valid metadata slot that will be used for statistical replicates.
+#' @param groupBy string; Valid metadata slot that will be used to group the data by. 
+#'    Typically a metadata slot that cooresponds to a cell type
+#' @param grepTerm string; Term to use an ifelse statement to split into groups.
+#' @param grepRes list of 2 strings; Used with grepTerm to set the group names
+#' @param saveSigRes logical; Used with grepTerm to set the group names
+#'   * `TRUE` (default): saves results of statistical testing in dout as [outName]_skewPlot_stats.csv
+#'   * `FALSE`: does not save the results of statistical testing in .csv
+#'
+#' @return ggplot object of the results
+#' 
+#' @examples
+#' \dontrun{
+#' # Compare abundacnces between groups within each level of "celltype"
+#' p <- skewPlot(seu.obj, groupBy = "celltype")
+#' 
+#' @export [outName]_skewPlot_stats.csv if saveSigRes is TRUE
+
 skewPlot <- function(
     seu.obj = seu.obj,
     groupBy = NULL,
     sampleRep = "orig.ident",
     grepTerm = "tumor",
     grepRes = c("TILs","Blood"),
-    outDir = "../output/",
+    dout = "../output/",
     outName = "",
     saveSigRes = T
 ){
@@ -2878,8 +2943,13 @@ skewPlot <- function(
         pct.df$cellSource <- ifelse(grepl(grepTerm, pct.df$Var.2), grepRes[1], grepRes[2]) 
 
         #run stats
-        statz <- compare_means(pct ~ cellSource, group.by = "Var.1", pct.df)
-
+        statz <- compare_means(pct ~ cellSource, group.by = "Var.1", pct.df) %>%
+        select(-p.format, -.y.) %>%
+        mutate(
+            p.signif = symnum(p.adj, cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, Inf),
+                              symbols = c("****", "***", "**", "*", "ns"))
+        )
+        
         if(saveSigRes){
             sig.df <- pct.df %>% 
             group_by(
@@ -2892,16 +2962,25 @@ skewPlot <- function(
                 MIN = min(pct),
                 MAX = max(pct)
             ) %>% 
-            left_join(statz, by = "Var.1")
+            left_join(statz, by = "Var.1") %>%
+            rename("cellType" = Var.1) 
             
-            outFile <- paste(outDir, outName, "_cluster_", sep = "")
-            write.csv(sig.df, file = paste0(outDir, "/", outName, "_skewPlot_stats.csv"))
+            outFile <- paste0(dout, outName, "_cluster_")
+            write.csv(sig.df, file = paste0(dout, "/", outName, "_skewPlot_stats.csv"))
         }
 
-        status <- pct.df %>% group_by(Var.1,cellSource) %>% summarize(med = median(pct)) %>% spread(cellSource,med) %>% left_join(statz[c("Var.1","p.adj")], by = "Var.1") %>% mutate(lfc = abs(log2(TILs/Blood)),
-        lab_col=case_when(lfc >= 3 & p.adj < 0.05 ~ "Unique",
-                          p.adj < 0.05 & lfc < 3 ~ "Skewed",
-                          p.adj > 0.05 ~ "Common")) %>% select(Var.1,lab_col) %>% as.data.frame()
+        status <- pct.df %>% 
+            group_by(Var.1,cellSource) %>% 
+            summarize(med = median(pct)) %>% 
+            spread(cellSource,med) %>% 
+            left_join(statz[c("Var.1","p.adj")], by = "Var.1") %>%
+            mutate(
+                lfc = abs(log2(TILs/Blood)),
+                lab_col=case_when(lfc >= 3 & p.adj < 0.05 ~ "Unique",
+                                  p.adj < 0.05 & lfc < 3 ~ "Skewed",
+                                  p.adj > 0.05 ~ "Common")) %>% 
+        select(Var.1,lab_col) %>% 
+        as.data.frame()
 
         pct.df <- pct.df %>% left_join(status, by = "Var.1")
 
@@ -2927,9 +3006,10 @@ skewPlot <- function(
             axis.text = element_text(face = "bold"),
             axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
             plot.background = element_blank()
-      ) + facet_wrap("cellSource", nrow = 2) + scale_fill_manual(labels = c("Common","Skewed","Unique"),
-                                                               values = brewer.pal(n = 3, name = "Dark2"),
-                                                               name = "Uniqueness\nclassification")
+        ) + facet_wrap("cellSource", nrow = 2) + 
+        scale_fill_manual(labels = c("Common","Skewed","Unique"),
+                          values = brewer.pal(n = 3, name = "Dark2"),
+                          name = "Uniqueness\nclassification")
         return(p)
     } else{
         message("groupBy formal is not specified, please enter the name of a valid metadata slot")
