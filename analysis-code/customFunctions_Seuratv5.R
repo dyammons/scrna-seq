@@ -123,7 +123,7 @@ load10x <- function(
     featPlots = c("PTPRC", "CD3E", "CD8A", "GZMA",
                   "IL7R", "ANPEP", "FLT3", "DLA-DRA",
                   "CD4", "MS4A1", "PPBP","HBM")
-){
+    ){
 
     #if running a real run, update the user on the specified QC parameters that will be applied to the samples
     if (testQC == FALSE){
@@ -482,7 +482,7 @@ integrateData <- function(
     read_h5 = FALSE,
     k = 100, 
     min.cell = 30
-                        ) {
+    ) {
     
     options(future.globals.maxSize = 3e+09)
     
@@ -543,7 +543,7 @@ integrateData <- function(
         seu.obj <- SCTransform(seu.obj)
         seu.obj <- RunPCA(seu.obj) %>% FindNeighbors(., dims = 1:30, reduction = "pca") %>% 
         FindClusters(., resolution = 1, cluster.name = "unintegrated_clusters")
-    } else {
+    } else{
         message("The normalization.method value is not recognized. The options are 'LogNormalize' or 'SCT'. Please update argument and try again.")
         break()
     }
@@ -1089,58 +1089,97 @@ prettyFeats <- function(
 #features to add
 #error if more than 2 levels ORR make if so user specifies compatisipon
 
-linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = T, groupBy = "clusterID", comparison = "cellSource", outDir = "./output/", outName = "", cluster = NULL, labCutoff = 20, noTitle = F,
-                   colUp = "red", colDwn = "blue", subtitle = T, returnUpList = F, returnDwnList = F, forceReturn = F, useLineThreshold = F, pValCutoff = 0.01, flipLFC = F, saveGeneList = F, addLabs = ""
-                  ) {
-
+linDEG <- function(
+    seu.obj = NULL, 
+    threshold = 1, 
+    thresLine = F, 
+    groupBy = "clusterID",
+    comparison = "cellSource", 
+    outDir = "./output/", 
+    outName = "", 
+    cluster = NULL,
+    labCutoff = 20, 
+    noTitle = F, 
+    contrast = NULL, 
+    colUp = "red", 
+    colDwn = "blue",
+    subtitle = T, 
+    returnUpList = F, 
+    returnDwnList = F, 
+    forceReturn = F, 
+    useLineThreshold = F,
+    pValCutoff = 0.01, 
+    logfc.threshold = 0.58,
+    saveGeneList = F, 
+    addLabs = "", 
+    labsHide = c("^MT-","^RPL","^ENS","^RPS"), 
+    returnPlots = F
+    ){
+    
     #set active.ident
-    Idents(seu.obj) <- groupBy
-
+    Idents(seu.obj) <- groupBy    
+    
+    if(is.null(contrast)){
+        message(paste0("It is now reccomened that a contrast be provided. This should be two levels present in the comparison metadata slot.",
+        "Please provide this information as c(",  "'comp1'", ",",  "'comp2'",") and the analysis will run comp1 VS comp2."))
+        contrast <- levels(seu.obj@meta.data[[comparison]])[c(1:2)]
+        message(paste0("Contrasting - (1) ", contrast[1]," - VS - (2) ", contrast[2]))
+    }
+    
     #loop through active.ident to make plots for each group
     lapply(if(is.null(cluster)){levels(seu.obj)}else{cluster}, function(x) {
 
+        #subset on population of cells to analyze -- if all cells are included this will effectively not do anything
         seu.sub <- subset(seu.obj, idents = x)
         seu.sub@meta.data[[groupBy]] <- droplevels(seu.sub@meta.data[[groupBy]])
-        geneList <- vilnSplitComp(seu.obj = seu.sub, groupBy = groupBy, refVal = comparison, outDir = outDir, outName = outName,
-                                  saveOut = F, saveGeneList = saveGeneList, returnGeneList = T
-                                 )
+               
+        #use FindMarkers buried in the the custom vilnSplitComp function to complete stats to ID DEGs
+        geneList <- vilnSplitComp(seu.obj = seu.sub, groupBy = groupBy, refVal = comparison, 
+                                  outDir = outDir, outName = outName, 
+                                  saveOut = F, saveGeneList = saveGeneList, returnGeneList = T, 
+                                  contrast = contrast, pValCutoff = pValCutoff, logfc.threshold = logfc.threshold
+                                 ) 
         geneList <- geneList[[1]]
-        geneList <- geneList[geneList$p_val_adj < pValCutoff,]
-        if(flipLFC){
-            geneList$avg_log2FC <- -geneList$avg_log2FC
-        }
         geneList$gene <- rownames(geneList)
-
+        
+        #extract average expression values for plotting (FYI: AverageExpression() is applied to non-logged data!!)
         Idents(seu.sub) <- comparison
         avg.seu.sub <- log1p(AverageExpression(seu.sub, verbose = FALSE)$RNA)
         avg.seu.sub <- as.data.frame(avg.seu.sub)
-        avg.seu.sub <- avg.seu.sub[!grepl("ENSCAFG", row.names(avg.seu.sub)),] #make better
-        avg.seu.sub <- avg.seu.sub[!grepl("HBM", row.names(avg.seu.sub)),] #make better
-
+        
+        #convert groups to "X" and "Y" for plotting where contrast[2] is on x-axis and contrast[1] is on y-axis
+        avg.seu.sub <- avg.seu.sub[ ,contrast[c(2,1)]]
         colnames(avg.seu.sub) <- c("X","Y")
-        #calculate which points fall outside threshold, so they can be labled --- NEED TO FIX THIS....
 
+        #do some manupulation to label select data points
+        #this is recomened approach
         if(!useLineThreshold){
-            avg.seu.sub <- avg.seu.sub %>% mutate(gene=rownames(avg.seu.sub)) %>%
-            left_join(geneList, by = "gene") %>%
+            #join the coordinates df with the DEG results then run filtering to select data points to label
+            #this labels the top n selected by the user, ranked by abs(X*Y) to find the data points furthest from n.s.
+
+            avg.seu.sub <- avg.seu.sub %>% mutate(gene=rownames(avg.seu.sub)) %>% 
+            left_join(geneList, by = "gene") %>% 
             mutate(direction=case_when(avg_log2FC > 0 ~ "up",
                                        avg_log2FC < 0 ~ "dwn",
                                        is.na(avg_log2FC) ~ "NA"),
+                   direction=ifelse(gene %in% rownames(geneList)[grepl(paste(labsHide,collapse="|"), row.names(geneList))], "exclude", direction),
                    residual=case_when(direction == "up" ~ abs(Y-X),
                                       direction == "dwn" ~ abs(Y-X),
-                                      direction == "NA" ~ 0)) %>% arrange(desc(residual)) %>% group_by(direction) %>%
-            #arrange(p_val_adj) %>%
+                                      direction == "NA" ~ 0,
+                                      direction == "exclude" ~ 0)) %>% arrange(desc(residual)) %>% group_by(direction) %>% 
             mutate(lab=ifelse(row_number() <= labCutoff
-                              & direction != "NA"
+                              & direction != "NA" 
+                              & direction != "exclude"
                               & gene %in% c(rownames(geneList),addLabs), gene, ifelse(gene %in% addLabs, gene, NA)),
                    lab_col=case_when(direction == "up" ~ colUp,
                                      direction == "dwn" ~ colDwn,
-                                     direction == "NA" ~ "black")
+                                     direction == "NA" ~ "black",
+                                     direction == "exclude" & avg_log2FC > 0 ~ colUp,
+                                     direction == "exclude" & avg_log2FC < 0 ~ colDwn)
                   )
         }else{
-
             avg.seu.sub <- avg.seu.sub %>% mutate(gene=rownames(avg.seu.sub),
-                                                  up=threshold+1*X,
+                                                  up=threshold+1*X, 
                                                   dn=-threshold+1*X,
                                                   direction=case_when(Y > up ~ "up",
                                                                       Y < dn ~ "dwn",
@@ -1148,62 +1187,68 @@ linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = T, groupBy = "clus
                                                   residual=case_when(direction == "up" ~ Y-up,
                                                                      direction == "dwn" ~ dn-Y,
                                                                      direction == "NA" ~ 0),
-                                                 ) %>% group_by(direction) %>%
-            arrange(desc(residual)) %>%
-            mutate(lab=ifelse(row_number() <= labCutoff
-                              & direction != "NA"
-                              & gene %in% c(rownames(geneList),addLabs), gene, ifelse(gene %in% addLabs, gene, NA)),
+                                                 ) %>% group_by(direction) %>% 
+            arrange(desc(residual)) %>% 
+            mutate(lab=ifelse(row_number() <= labCutoff 
+                              & direction != "NA" 
+                              & gene %in% c(rownames(geneList),addLabs), gene, ifelse(gene %in% addLabs, gene, NA)),  
                    lab_col=case_when(direction == "up" ~ colUp,
                                      direction == "dwn" ~ colDwn,
                                      direction == "NA" ~ "black")
                   )
         }
-
-
+        
+        #check if there was at least 1 DGE or force return == T before saving the plot
         if(length(na.omit(avg.seu.sub$lab)) > 0 | forceReturn == T){
-            outfile <- paste0(outDir,outName, "_", x,"_linear_deg_by_", groupBy,".png")
-
-            p <- ggplot(data=avg.seu.sub, aes(x = X, y = Y, label=lab)) +
-            ggtitle(x,
-                    if(subtitle) {subtitle = paste0("Average gene expression (", levels(seu.sub)[2]," vs ", levels(seu.sub)[1],")")}
-                     #paste("Cluster",x, sep = " "),
-                    ) +
-            geom_point(color = avg.seu.sub$lab_col) +
-            labs(x = levels(seu.sub)[1], y = levels(seu.sub)[2]) +
+            outfile <- paste0(outDir, outName, "_", gsub(" ", "_", x),"_linear_deg_by_", gsub(" ", "_", groupBy),".png")
+            
+            #make the plot
+            p <- ggplot(data=avg.seu.sub, aes(x = X, y = Y, label=lab)) + 
+            ggtitle(x, 
+                    if(subtitle) {subtitle = paste("Average gene expression (", contrast[1]," vs ", contrast[2],")", sep = "")}
+                   ) +
+            geom_point(color = avg.seu.sub$lab_col) + 
+            labs(x = contrast[2], y = contrast[1]) +
             {if(thresLine)geom_abline(intercept = threshold, slope = 1)} +
-            {if(thresLine)geom_abline(intercept = -threshold, slope = 1)} +
-            geom_label_repel(max.overlaps = Inf, size=5, color = avg.seu.sub$lab_col) +
-            theme_classic() +
+            {if(thresLine)geom_abline(intercept = -threshold, slope = 1)} + 
+            geom_label_repel(max.overlaps = Inf, size=5, color = avg.seu.sub$lab_col, max.time = 2, max.iter = 10000000) + 
+            theme_classic() + 
             {if(noTitle)theme(axis.title = element_text(size= 20),
                   axis.text = element_text(size= 14),
                   title = element_blank(),
                   plot.subtitle = element_text(size= 14)
                  )
-             } +
+             } + 
             {if(!noTitle)theme(axis.title = element_text(size= 20),
                   axis.text = element_text(size= 14),
                   title = element_text(size= 24),
                   plot.subtitle = element_text(size= 14)
                  )
-
+                
             }
-
+        
+            #save the plot
             ggsave(outfile)
-
+            
+            #if request to return, then do so
+            if(returnPlots){
+                return(p)
+            }
+            
+            #if request to return, then do so -- this returns features upregulated in contrast[1]
             if(returnUpList){
                 up <- avg.seu.sub[avg.seu.sub$direction == "up",]
                 upList <- up$gene
                 return(upList)
-
             }
-
+            
+            #if request to return, then do so -- this returns features upregulated in contrast[2]
             if(returnDwnList){
                 dwn <- avg.seu.sub[avg.seu.sub$direction == "dwn",]
                 dwnList <- dwn$gene
                 return(dwnList)
-
             }
-
+            
             }
     })
 }
@@ -1256,7 +1301,8 @@ formatUMAP <- function(plot = NULL, smallAxes = F) {
 }
 
 
-############ cusUMAP ############
+############ cusLabels ############
+#this function requires a UMAP plot gerneated using DimPlot with label = T, label.box = T
 #this function requires a UMAP plot gerneated using DimPlot with label = T, label.box = T
 cusLabels <- function(
     plot = NULL, 
@@ -1268,8 +1314,7 @@ cusLabels <- function(
     nudge_x = NULL, 
     nudge_y = NULL, 
     textSize = 4, 
-    smallAxes = FALSE,
-    highlight = NULL
+    smallAxes = FALSE
                   ) {
     
     #extract label coords and colors
@@ -1304,10 +1349,6 @@ cusLabels <- function(
     if(!is.null(nudge_y)){
         labCordz$UMAP2 <- labCordz$UMAP2 + nudge_y
     }
-    
-    if(!is.null(highlight)){
-        labCordz <- filter(labCordz, clusterID %in% highlight)
-    }
 
     #rownames(labCordz) <- NULL
     #remove old labels
@@ -1326,6 +1367,7 @@ cusLabels <- function(
     plot <- formatUMAP(plot, smallAxes = smallAxes)
     return(plot)
 }
+
 
 ############ freqPlots ############
 
@@ -1420,56 +1462,60 @@ freqPlots <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "orig.iden
 
 ############ vilnSplitComp ############
 
-vilnSplitComp <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "cellSource", outName = "", nPlots = 9, saveOut = T, saveGeneList = F, returnGeneList = F,
+vilnSplitComp <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "cellSource", outName = "", nPlots = 9, saveOut = T, saveGeneList = F, returnGeneList = F, contrast = NULL, filterOutFeats = c("^MT-","^RPL","^RPS"), logfc.threshold = 0.5, pValCutoff = 0.01,
                           outDir = "./output/"
                        ) {
-
+    
+    #set the groups to contrast
     DefaultAssay(seu.obj) <- "RNA"
-    seu.obj@meta.data$cluster.condition <- paste(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[[refVal]], sep = "_")
-
-    ident.level <- levels(seu.obj@meta.data[[groupBy]])
+    seu.obj$cluster.condition <- paste(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[[refVal]], sep = "_")
     Idents(seu.obj) <- "cluster.condition"
+    
+    p <- lapply(levels(seu.obj@meta.data[[groupBy]]), function(x) {
 
-    p <- lapply(ident.level, function(x) {
+        #split the groups by condition
+        comp1 <- paste(x, gsub(" ", "_", contrast[1]), sep = "_") 
+        comp2 <- paste(x, gsub(" ", "_", contrast[2]), sep = "_")
+        
+        #use FindMarkers to complete DGE analysis -- default parameters used
+        message(paste0("Contrasting - (1) ", comp1," - VS - (2) ", comp2))
+        cluster.markers <- FindMarkers(seu.obj, ident.1 = comp1,  ident.2 = comp2, min.pct = 0, logfc.threshold = logfc.threshold) 
+        message(paste0("Number of DEGs prior to p_val_adj filter:"))
+        print(cluster.markers %>% mutate(direction = ifelse(avg_log2FC > 0, "Up", "Down")) %>% group_by(direction) %>% summarize(nRow = n()))
+        
+        #filter the results based on the user specified adjusted p-value
+        cluster.markers <- cluster.markers %>% filter(p_val_adj < pValCutoff)
+        message(paste0("Number of DEGs following p_val_adj filter:"))
+        print(cluster.markers %>% mutate(direction = ifelse(avg_log2FC > 0, "Up", "Down")) %>% group_by(direction) %>% summarize(nRow = n()))
 
-        comp1 <- paste(x, unique(seu.obj@meta.data[[refVal]])[1], sep = "_") # need to improve this - what iff more than 2 groups?????
-        comp2 <- paste(x, unique(seu.obj@meta.data[[refVal]])[2], sep = "_")
-
-        cluster.markers <- FindMarkers(seu.obj, ident.1 = comp1,  ident.2 = comp2, min.pct = 0, logfc.threshold = 0.5)
-
+        #save the output DGE results if requested
         if(saveGeneList){
-            outfile <- paste0(outDir, outName,"_", x,"geneList.csv")
             cluster.markers$cellType <- x
-            write.csv(cluster.markers, file = outfile)
+            write.csv(cluster.markers, file = paste0(outDir, outName, "_", gsub(" ", "_", x) ,"_geneList.csv"))
         }
 
+        #return the gene list if requested
         if(returnGeneList){
             return(cluster.markers)
         }
-
-        exportList <- row.names(cluster.markers)
-        exportList <- exportList[!grepl("^MT-", exportList)] # improve this
-        exportList <- exportList[!grepl("^RPL", exportList)]
-        exportList <- exportList[!grepl("^RPS", exportList)]
-        exportList <- exportList[!grepl("^ENS", exportList)]
-
-        outList <- head(exportList, n = nPlots)
-        if(length(outList) > 0){
-        seurat.vlnplot <- VlnPlot(
-            object = seu.obj,
-            idents = c(comp1,comp2),
-            features = outList,
-            split.by = refVal
-        )
-
-        if(saveOut){
-            outfile <- paste0(outDir, outName,"_", x,"_top",nPlots,"_comp_vlnPlot.png")
-            png(file = outfile, width=2520, height=1460)
-
-            print(seurat.vlnplot)
-            dev.off()
-        }
-
+        
+        #filter out requested features using regex
+        cluster.markers <- cluster.markers[!grepl(paste(filterOutFeats,collapse="|"), row.names(cluster.markers)), ]
+        
+        #plot the desired number of DEGs by subsetting the DEGs
+        cluster.markers.toPlot <- cluster.markers %>% top_n(n = -nPlots, wt = p_val)
+        if(length(rownames(cluster.markers.toPlot)) > 0){
+            seurat.vlnplot <- VlnPlot(object = seu.obj,
+                                      idents = c(comp1,comp2),
+                                      features = rownames(cluster.markers.toPlot),
+                                      split.by = refVal
+            )
+            
+            if(saveOut){
+                png(file = paste0(outDir, outName,"_", x,"_top",nPlots,"_comp_vlnPlot.png"), width=2520, height=1460)
+                print(seurat.vlnplot)
+                dev.off()
+            }
         }
     })
 }
@@ -1501,7 +1547,7 @@ vilnSplitCompxGene <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp =
                                cols = c("mediumseagreen","mediumpurple1"), save = FALSE, outName = "", outDir = "",
                                height = 4, width = 8
                               ){
-
+    
     DefaultAssay(seu.obj) <- "RNA"
     Idents(seu.obj) <- groupBy
 
@@ -1512,7 +1558,7 @@ vilnSplitCompxGene <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp =
         ymax = 0
     )
 
-
+    
     p <- VlnPlot(
         features = features,
         object = seu.obj,
@@ -1529,32 +1575,32 @@ vilnSplitCompxGene <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp =
                   plot.margin = margin(0, 0, 0, 3, "pt"),
                   legend.text = element_text(margin = margin(r = 10, unit = "pt"))
                  ) & theme(axis.text.x = element_blank())
-
+        
         if(save == T){
-            outfile <- paste0(outDir, outName,"_", x,"_comp_vlnPlot.png")
-            ggsave(plot = p, outfile, height = height, width = width)
+            outfile <- paste0(outDir, outName,"_", x,"_comp_vlnPlot.png") 
+            ggsave(plot = p, outfile, height = height, width = width) 
         }
-
-
+        
+    
 #         #plot lablels for bottom of plot
-#         g <- ggplot(colArray, aes(x = clusterID_sub, y = 1, fill = clusterID_sub, label = clusterID_sub)) +
+#         g <- ggplot(colArray, aes(x = clusterID_sub, y = 1, fill = clusterID_sub, label = clusterID_sub)) + 
 #     geom_tile(fill = "transparent") +
 #     geom_point(shape = 21, stroke = 0.75, size = 7) +
 #     geom_text(fontface = "bold", size = 3, color = colArray$labCol) + theme_bw(base_size = 12) +
 #     scale_fill_manual(values = colArray$colour) + scale_y_discrete(expand = c(0, 0)) +
 #     theme(legend.position = "none", panel.spacing = unit(0, "lines"),
-#               panel.background = element_blank(),
+#               panel.background = element_blank(), 
 #               panel.border = element_blank(),
-#               plot.background = element_blank(),
+#               plot.background = element_blank(), 
 #               plot.margin = margin(0, 0, 0, 3, "pt"),
 #               axis.title.y = element_blank(),
 #               axis.ticks.y = element_blank(),
 #               axis.ticks.x = element_blank(),
 #               axis.text = element_blank(),
-#                   panel.grid.major = element_blank(),
-#                   panel.grid.minor = element_blank()) + xlab("Cluster")
-#      pi <- plot_grid(p, g, ncol = 1, rel_heights = c(0.85, 0.15), align = "v", axis = "lr")
-
+#                   panel.grid.major = element_blank(), 
+#                   panel.grid.minor = element_blank()) + xlab("Cluster") 
+#      pi <- plot_grid(p, g, ncol = 1, rel_heights = c(0.85, 0.15), align = "v", axis = "lr") 
+    
     return(p)
 }
 
@@ -1564,13 +1610,13 @@ vilnSplitCompxGene <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp =
 getPb <- function(mat.sparse, bioRep) {
 
     #extract count sums for each cell within a biological replicate
-    collapsedCnts <- lapply(levels(bioRep$cellSource), function(rep){
-
-        cells <- row.names(bioRep)[bioRep$cellSource == rep]
+    collapsedCnts <- lapply(levels(bioRep$cellSource), function(repicate){
+        
+        cells <- row.names(bioRep)[bioRep$cellSource == repicate]
         pseudobulk <- Matrix::rowSums(mat.sparse[ ,cells])
 
         return(pseudobulk)
-
+        
         })
 
     #bind the values for each sample and add the column names
@@ -1589,10 +1635,10 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
 
     #set active.ident to the level to loop by
     Idents(seu.obj) <- groupBy
-
+    
     #extract number of biological replicates in the grouping system
     ztest <- dim(table(seu.obj@meta.data[[biologicalRep]]))
-
+    
     #if specific clusters no provied, loop through all levels in active.ident
     groupz <- ifelse(is.null(clusters), levels(seu.obj), list(clusters))
 
@@ -1608,17 +1654,16 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
         zKeep <- names(z)
 
         if(length(zKeep) >= 0.5*ztest){
-
-            #remove samples that have insufficent cell numbers then normalize the data (normalization is not needed)
+        
+            #remove samples that have insufficent cell numbers
             Idents(seu.sub) <- biologicalRep
             seu.sub.clean <- subset(seu.sub, idents = zKeep)
-            seu.sub.clean <- NormalizeData(seu.sub.clean)
-
+    
             seu.sub.clean@meta.data[[biologicalRep]] <- as.factor(seu.sub.clean@meta.data[[biologicalRep]])
             seu.sub.clean@meta.data[[biologicalRep]] <- droplevels(seu.sub.clean@meta.data[[biologicalRep]])
-
+            
             z <- table(seu.sub.clean@meta.data[[biologicalRep]], seu.sub.clean@meta.data[[comp]]) %>% melt() %>% filter(value != 0)
-
+            
             #extract and save metadata in a data.frame
             z <- as.data.frame(z)
             colnames(z) <- c("sampleID", "groupID", "nCell")
@@ -1630,82 +1675,64 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
 
                 #identitfy sample with fewest number of cells
                 ds <- min(z$nCell[z$nCell > min.cell])
-
                 msg <- paste0("Downsampling cluster: ", x," at a level of ", ds, " cells per replicate.")
                 message(msg)
-
+        
                 #randomly downsample the subset data
                 Idents(seu.sub.clean) <- biologicalRep
                 set.seed(12)
                 seu.sub.clean <- subset(x = seu.sub.clean, downsample = ds)
-
             }
-
+            
             #extract required data for pseudobulk conversion
             if(cnts){
-
-                mat <- seu.sub.clean@assays$RNA@counts
-
+                mat <- seu.obj@assays$RNA@layers$counts
             }else{
-
-                mat <- seu.sub.clean@assays$RNA@data
-
+                mat <- seu.obj@assays$RNA@layers$data
             }
 
+            #bring over gene sybmols and cell names
+            colnames(mat) <- colnames(seu.obj)
+            rownames(mat) <- rownames(seu.obj)
+            
             #remove features that have less than 10 cells with a non-zero expression value
             if(lowFilter){
-
                 mat <- mat[rowSums(mat > 1) >= 10, ]
-
             }
-
+                        
             #extract data needed to make pseudobulk matrix
             bioRep <- as.data.frame(seu.sub.clean@meta.data[[biologicalRep]])
             colnames(bioRep) <- "cellSource"
             row.names(bioRep) <- colnames(seu.sub.clean)
             bioRep$cellSource <- as.factor(bioRep$cellSource)
-
             #use custom function to convert to pseudobulk
             pbj <- getPb(mat, bioRep)
-
             #optionally exclude features from conversion (HBM, PPBP, MT-, RPS- are feats to consider excluding)
             if(!is.null(featsTOexclude)){
-
                 pbj <- pbj[!rownames(pbj) %in% featsTOexclude, ]
-
             }
-
             #log the number of reps included
             if(length(colnames(pbj))-1 != ztest){
-
-                msg <- paste0("The following replicates were used for psudobluk conversion: ", as.list(colnames(pbj)))
+                msg <- paste0("INFO: During pseudobluk conversion of ", x, " the following samples were included: ", paste(as.list(colnames(pbj)),collapse=" "),"\nINFO: min.cell was set to: ", min.cell,"\n")
                 message(msg)
-
             } else {
-
                 msg <- "All replicates were used for psudobluk conversion"
                 message(msg)
-
             }
-
             #save the matrix
             write.csv(pbj, file = paste0(outDir, x, "_pb_matrix.csv"))
-
         } else {
-
             msg <- paste0("Unable to downsample cluster: ", x, " due to insufficent cell numbers")
             message(msg)
-
-        }
-
+        } 
         return(z)
-
     })
-
+ 
     #collect the metadata
     df <- do.call(rbind, test)
-
-    #save the metadata
+    df <- na.omit(df)
+    
+    #save the metadata 
     csvOut <- paste0(outDir,groupBy ,"_deg_metaData.csv")
     write.csv(df, file = csvOut)
 }
@@ -1713,25 +1740,21 @@ createPB <- function(seu.obj = NULL, groupBy = "clusterID_sub", comp = "cellSour
 ############ pseudoDEG ############
 
 # contrast will be idents.1_NAME vs idents.2_NAME !!!
-pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
+pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58, 
                       outDir = "", outName = "", idents.1_NAME = NULL, idents.2_NAME = NULL, returnDDS = F,
-                      inDir = "", title = "", fromFile = T, meta = NULL, pbj = NULL, returnVolc = F,
+                      inDir = "", title = "", fromFile = T, meta = NULL, pbj = NULL, returnVolc = F, 
                       paired = F, pairBy = "", minimalOuts = F, saveSigRes = T, topn=c(20,20),
-                      filterTerm = "^ENSCAF", addLabs = NULL, mkDir = F,
-                      dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3
+                      filterTerm = NULL, addLabs = NULL, mkDir = F, test.use = "Wald",
+                      dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, strict_lfc = F
                      ){
 
     if(fromFile){
-
         files <- list.files(path = inDir, pattern="pb_matrix.csv", all.files=FALSE,full.names=FALSE)
         clusters <- unname(sapply(files, function(x) {unlist(strsplit(x, split = "_pb_"))[1]}))
         outfileBase <- paste0(outDir, outName, "_cluster_")
-
     }else{
-
         clusters <- outName
         outfileBase <- outDir
-
     }
 
     lapply(clusters, function(x) {
@@ -1742,50 +1765,39 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
 
             meta <- read.csv(file = metaPWD, row.names = 1)
             meta <- meta[meta$clusterID == x,]
+            meta[,colnames(meta)] <- lapply(meta[,colnames(meta)] , factor)
         }
-
         if(mkDir){
             outDir <- paste0(outDir, "/", x, "/")
             dir.create(outDir)
             outfileBase <- paste0(outDir, outName, "_cluster_")
             }
-
         if(paired){
-
-            dds <- DESeqDataSetFromMatrix(round(pbj),
+            dds <- DESeqDataSetFromMatrix(round(pbj), 
                                           colData = meta,
                                           design = formula(paste0("~ groupID + ",noquote(pairBy))))
-
         }else{
-
-            dds <- DESeqDataSetFromMatrix(round(pbj),
+            dds <- DESeqDataSetFromMatrix(round(pbj), 
                                           colData = meta,
                                           design = ~ groupID)
-
         }
-
         if(returnDDS){
-
             return(dds)
-
         }
 
         #transform and plot the data with PCA
         rld <- varianceStabilizingTransformation(dds, blind=TRUE)
 
         if(!minimalOuts){
-
             outfile <- paste0(outfileBase, x,"_pca.png")
-            print(outfile)
             p <- DESeq2::plotPCA(rld, intgroup = "groupID")
             ggsave(outfile, width = 7, height = 7)
-
+            
             outfile <- paste0(outfileBase, x,"_pca2.png")
             p <- DESeq2::plotPCA(rld, intgroup = "sampleID")
             ggsave(outfile, width = 7, height = 7)
-
         }
-
+        
         #set up QC to evaluate treatment seperation by heatmap & plot
         rld <- rlog(dds, blind=FALSE)
         rld_mat <- assay(rld)
@@ -1796,12 +1808,25 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
             p <- pheatmap::pheatmap(rld_cor)
             ggsave(p, file = outfile)
         }
-
-        #run DESeq2 then plot dispersion estimates
-        dds <- DESeq(dds)
+        if(test.use == "LRT"){
+            if(paired){
+                dds <- DESeq(dds,
+                             test = "LRT",
+                             reduced = formula(paste0("~",noquote(pairBy)))
+                            )
+            } else{
+                dds <- DESeq(dds,
+                             test = "LRT",
+                             reduced = ~1)
+            }
+        } else if (test.use == "Wald"){
+            dds <- DESeq(dds)
+        } else {
+            message("\nERROR: test.use variable is not valid. Please specify Wald or LRT then try again.\n")
+            break
+        }
 
         #extract Wald test results
-
         if(!is.null(idents.1_NAME) | !is.null(idents.2_NAME)){
             contrast <- c("groupID", idents.1_NAME, idents.2_NAME)
         }else{
@@ -1809,68 +1834,52 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
             print("Variables idents.1_NAME and/or idents.2_NAME not specify, this may impact directionality of contrast - confirm results are as expect and/or specify ident names.")
         }
 
-
+        if(strict_lfc){
+            lfcCut_strict <- lfcCut
+        } else{
+            lfcCut_strict <- 0
+        }
         #perform logFoldChange and shrinkage
-        res <- results(dds,
+        res <- results(dds, 
                        contrast = contrast,
                        alpha = padj_cutoff,
-                       lfcThreshold = lfcCut,
-                       cooksCutoff=FALSE)
+                       lfcThreshold = lfcCut_strict, #this increases stringency
+                       cooksCutoff = FALSE)
         summary(res)
-
-        res <- lfcShrink(dds,
+        
+        res <- lfcShrink(dds, 
                          contrast = contrast,
-                         res=res,
-                         type="normal") #would prefer to use something other than normal
-
-#         res <- lfcShrink(dds,
-#                          coef = resultsNames(res)[1],
-#                          type="apeglm") #would prefer to use something other than normal
+                         res = res,
+                         type = "normal") #would prefer to use something other than normal
 
         #extract the results and save as a .csv
-        res_tbl <- res %>%
-        data.frame() %>%
-        rownames_to_column(var="gene") %>%
-        as_tibble()
-
-        sig_res <- dplyr::filter(res_tbl, padj < padj_cutoff) %>%
-        dplyr::arrange(padj)
-
+        res_tbl <- res %>% data.frame() %>%
+        rownames_to_column(var="gene") %>% as_tibble()
+        sig_res <- res_tbl %>% filter(padj < padj_cutoff, abs(log2FoldChange) > lfcCut) %>% arrange(padj)
         if(saveSigRes){
             sig_res$gs_base <- toupper(x)
-
             write.csv(sig_res,
                       file = paste0(outfileBase, x,"_all_genes.csv"),
                       quote = FALSE,
                       row.names = FALSE)
         }
-
+        
         #get nomarlized counts and plot top 20 DEGs
-        normalized_counts <- counts(dds,
+        normalized_counts <- counts(dds, 
                                     normalized = TRUE)
-
-        top20_sig_genes <- sig_res %>%
-        dplyr::arrange(padj) %>%
-        dplyr::pull(gene) %>%
-        head(n=20)
-
+        top20_sig_genes <- sig_res %>% arrange(padj) %>% pull(gene) %>% head(n=20)
         top20_sig_norm <- data.frame(normalized_counts) %>%
-        rownames_to_column(var = "gene") %>%
-        dplyr::filter(gene %in% top20_sig_genes)
-
+        rownames_to_column(var = "gene") %>% filter(gene %in% top20_sig_genes)
         gathered_top20_sig <- top20_sig_norm %>%
         gather(colnames(top20_sig_norm)[2:length(colnames(top20_sig_norm))], key = "samplename", value = "normalized_counts")
-
         gathered_top20_sig <- meta %>% inner_join(gathered_top20_sig, by = c("sampleID" = "samplename")) #need more metadata
-
-        if(dim(gathered_top20_sig)[1] > 0){
-
-            #plot with ggplot2
+    
+        if(dim(gathered_top20_sig)[1] > 0){ 
             if(!minimalOuts){
                 outfile <- paste0(outfileBase, x,"_genePlot.png")
                 p <- ggplot(gathered_top20_sig) +
-                geom_point(aes(x = gene,
-                               y = normalized_counts,
+                geom_point(aes(x = gene, 
+                               y = normalized_counts, 
                                color = groupID), #need to fix samplename & change to groupID
                            position=position_jitter(w=0.1,h=0)) +
                 scale_y_log10() +
@@ -1882,65 +1891,38 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
                 theme(plot.title = element_text(hjust = 0.5))
                 ggsave(p, file = outfile)
             }
-
+            
             #extract sig DEGs based on normalized data and plot heat map
             sig_norm <- data.frame(normalized_counts) %>%
-            rownames_to_column(var = "gene") %>%
-            dplyr::filter(gene %in% sig_res$gene)
-
+            rownames_to_column(var = "gene") %>% filter(gene %in% sig_res$gene)
             rownames(sig_norm) <- sig_norm$gene
             colAnn <- as.data.frame(meta[,"groupID"], colname = "groupID")
             rownames(colAnn) <- meta[,"sampleID"]
             colnames(colAnn) <- "groupID"
-
             heat_colors <- brewer.pal(6, "YlOrRd")
 
-#             if(!minimalOuts){
-#                 outfile <- paste0(outfileBase, x,"_pheatmapComp.png")
-#                 p <- pheatmap(sig_norm[ , 2:length(colnames(sig_norm))],
-#                               color = heat_colors,
-#                               cluster_rows = FALSE,
-#                               show_rownames = TRUE,
-#                               annotation = colAnn,
-#                               #border_color = "grey",
-#                               fontsize = 10,
-#                               scale = "row",
-#                               fontsize_row = 10,
-#                               height = 20)
-#                 ggsave(p, file = outfile)
-#             }
-
             #set threshold and flag data points then plot with ggplot
-
-            res_table_thres <- res_tbl %>% mutate(threshold = ifelse(padj < padj_cutoff & abs(log2FoldChange) >= lfcCut,
+            res_table_thres <- res_tbl %>% mutate(threshold = ifelse(padj < padj_cutoff & abs(log2FoldChange) >= lfcCut, 
                                             ifelse(log2FoldChange > lfcCut ,'Up','Down'),'Stable')
                                                  )
-
             res_table_thres <- res_table_thres[!is.na(res_table_thres$padj),]
-
-
             res_table_thres.sortedByPval = res_table_thres[order(res_table_thres$padj),]
-            res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl(filterTerm, res_table_thres.sortedByPval$gene),]
+            res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl(paste(filterTerm, collapse = "|"), res_table_thres.sortedByPval$gene),]
             top20_up <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Up",] %>%  do(head(., n=topn[1]))
             top20_down <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Down",] %>%  do(head(., n=topn[2]))
-
             res_table_thres <- res_table_thres %>% mutate(label = ifelse(gene %in% top20_up$gene | gene %in% top20_down$gene | gene %in% addLabs, gene, NA)
                          )
-
             cntUp <- nrow(res[which(res$log2FoldChange > lfcCut & res$padj < padj_cutoff),])
             cntDwn <- nrow(res[which(res$log2FoldChange < -lfcCut & res$padj < padj_cutoff),])
-
             outfile <- paste0(outfileBase, x,"_volcano.png")
-
             if(fromFile){
                 if(is.null(title)){
                     title <- paste0(idents.1_NAME, " vs ",idents.2_NAME, "within", x)
                 }
             }
-
             p <- ggplot(data = res_table_thres,
-                        aes(x = log2FoldChange,
-                            y = -log10(padj),
+                        aes(x = log2FoldChange, 
+                            y = -log10(padj), 
                             colour = threshold)) +
             geom_vline(xintercept = c(-lfcCut,lfcCut), lty = 4, col="black", lwd = 0.8) +
             geom_hline(yintercept = -log10(padj_cutoff), lty = 4, col="black", lwd = 0.8) +
@@ -1948,29 +1930,26 @@ pseudoDEG <- function(metaPWD = "", padj_cutoff = 0.1, lfcCut = 0.58,
             geom_label_repel(max.overlaps = Inf, size=labSize, label = res_table_thres$label, show.legend = FALSE) +
             labs(x="log2(fold change)",
                  y="-log10(padj)",
-                 title=title) +
+                 title=title) + 
             scale_color_manual(values=c("Down" = dwnCol, "Stable" = stblCol,"Up" = upCol), labels=c(paste0("Down (", cntDwn,")"), "Stable", paste0("Up (", cntUp,")"))) +
             theme_bw() +
-            theme(plot.title = element_text(size = 20, hjust=0.5),
-                  legend.position = "right",
+            theme(plot.title = element_text(size = 20, hjust=0.5), 
+                  legend.position = "right", 
                   legend.title = element_blank()
                  )
             ggsave(p, file = outfile)
-
             if(returnVolc){
                 return(p)
             }
-
-
         }
     })
 }
 ############ btwnClusDEG ############
 #work in progress             - need to to fix doLinDEG option ### NOTE: cannot have special char in ident name
-btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL, idents.2 = NULL, bioRep = "orig.ident",padj_cutoff = 0.05, lfcCut = 0.58, topn=c(20,20),
-                        minCells = 25, outDir = "", title = NULL, idents.1_NAME = "", idents.2_NAME = "", returnVolc = F, doLinDEG = F, paired = T, addLabs = NULL, lowFilter = F, dwnSam = T, setSeed = 12, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3
+btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL, idents.2 = NULL, bioRep = "orig.ident",padj_cutoff = 0.05, lfcCut = 0.58, topn=c(20,20), strict_lfc = F,
+                        minCells = 25, outDir = "", title = NULL, idents.1_NAME = "", idents.2_NAME = "", returnVolc = F, doLinDEG = F, paired = T, addLabs = NULL, lowFilter = F, dwnSam = T, setSeed = 12, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, filterTerm = NULL
                     ){
-
+    
     seu.integrated.obj <- seu.obj
     DefaultAssay(seu.integrated.obj) <- "RNA"
 
@@ -1978,9 +1957,9 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
     if(is.null(idents.2)){
         idents.2 <- levels(seu.integrated.obj)[!levels(seu.integrated.obj) %in% idents.1]
     }
-
+    
     seu.sub <- subset(seu.integrated.obj, idents = as.list(append(idents.1,idents.2)))
-
+    
     if(all(idents.1 %in% levels(seu.integrated.obj))){
         if(length(idents.1) > 1){
             grepTerm <- paste(idents.1,collapse="|")
@@ -1996,7 +1975,7 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
         title <- paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME))
     }
     seu.sub$compare <- ifelse(grepl(grepTerm, seu.sub@meta.data[[groupBy]]), "idents.1", "idents.2")
-
+    
     Idents(seu.sub) <- "compare"
 
     #extract number of biological replicates in the grouping system
@@ -2011,20 +1990,20 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
     Idents(seu.sub) <- "conditional"
     seu.sub.clean <- subset(seu.sub, idents = zKeep)
     #seu.sub.clean <- NormalizeData(seu.sub.clean)
-
+    
     z <- table(seu.sub.clean@meta.data$conditional)
-
+    
     #extract and save metadata in a data.frame
     z <- as.data.frame(z)
     colnames(z) <- c("sampleID", "nCell")
     z$groupID <- ifelse(grepl("idents.1", z$sampleID), idents.1_NAME, idents.2_NAME)
-
+    
     ds <- min(z$nCell)
 
     if(dwnSam){
     message <- paste0("Downsampling at a level of ", ds, " cells per replicate")
     print(message)
-
+        
     #randomly downsample the subset data
         Idents(seu.sub.clean) <- "conditional"
         set.seed(setSeed)
@@ -2032,11 +2011,11 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
     }
 
     #extract required data for pseudobulk conversion
-    mat <- seu.sub.clean@assays$RNA@counts
+    mat <- seu.sub.clean@assays$RNA$counts
     if(lowFilter){
         mat <- mat[rowSums(mat > 1) >= 10, ]
     }
-
+    
     bioRep <- as.data.frame(seu.sub.clean@meta.data$conditional)
     colnames(bioRep) <- "cellSource"
     row.names(bioRep) <- colnames(seu.sub.clean)
@@ -2048,7 +2027,7 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
 
     ### pseudobulk DEG using DEseq2 backbone ###
     meta <- z
-
+    
     meta$bioRepPair <- str_split_fixed(meta$sampleID, "_ident.", 2)[,1]
     if(doLinDEG == T){
         seu.sub.clean$compareLinDEG <- ifelse(grepl(grepTerm, seu.sub.clean@meta.data$clusterID), "idents.1", "idents.2")
@@ -2057,20 +2036,20 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
               )
     }
     print(meta)
-    p <- pseudoDEG(padj_cutoff = padj_cutoff, lfcCut = lfcCut, outName = paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME)),
-              outDir = outDir, title = title, fromFile = F, meta = meta, pbj = pbj, returnVolc = returnVolc, paired = paired, pairBy = "bioRepPair",
-                   idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, saveSigRes = T, addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,upCol = upCol, labSize = labSize
-                     )
+    p <- pseudoDEG(padj_cutoff = padj_cutoff, lfcCut = lfcCut, outName = paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME)), 
+              outDir = outDir, title = title, fromFile = F, meta = meta, pbj = pbj, returnVolc = returnVolc, paired = paired, pairBy = "bioRepPair", strict_lfc = strict_lfc,
+                   idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, saveSigRes = T, addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,upCol = upCol, labSize = labSize, filterTerm = filterTerm
+                     )    
     return(p)
 }
 ############ volcFromFM ############
 volcFromFM <- function(seu.obj = NULL, padj_cutoff = 0.01, lfcCut = 0.58, title = "",
                      clusters = NULL, outDir = "", preSub = F
-                    ){
-
+                    ){    
+    
     if(preSub == F & !is.null(clusters)){
         seu.obj <- subset(seu.obj,
-                          subset =
+                          subset = 
                           clusterID_sub == clusters) #this aint right fix
         }
 
@@ -2079,7 +2058,7 @@ volcFromFM <- function(seu.obj = NULL, padj_cutoff = 0.01, lfcCut = 0.58, title 
     clusMarkers <- tibble::rownames_to_column(clusMarkers, "gene")
 
     #set threshold and flag data points then plot with ggplot
-    res_table_thres <- clusMarkers %>% mutate(threshold = ifelse(p_val_adj < padj_cutoff & abs(avg_log2FC) >= lfcCut,
+    res_table_thres <- clusMarkers %>% mutate(threshold = ifelse(p_val_adj < padj_cutoff & abs(avg_log2FC) >= lfcCut, 
                                                                  ifelse(avg_log2FC > lfcCut ,'Up','Down'),'Stable')
                                              )
 
@@ -2088,7 +2067,7 @@ volcFromFM <- function(seu.obj = NULL, padj_cutoff = 0.01, lfcCut = 0.58, title 
     res_table_thres.sortedByPval = res_table_thres[order(res_table_thres$p_val_adj),]
     cntUp <- nrow(res_table_thres[res_table_thres$threshold == "Up",])
     cntDwn <- nrow(res_table_thres[res_table_thres$threshold == "Down",])
-    res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl("^ENSCAF|^MT-|^RPS|^RPL", res_table_thres.sortedByPval$gene),]
+    res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl("^ENSCAF|^MT-|^RPS|^RPL", res_table_thres.sortedByPval$gene),] 
     top20_up <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Up",] %>% do(head(., n=20))
     top20_down <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Down",] %>%  do(head(., n=20))
 
@@ -2096,13 +2075,13 @@ volcFromFM <- function(seu.obj = NULL, padj_cutoff = 0.01, lfcCut = 0.58, title 
     res_table_thres <- res_table_thres %>% mutate(label = ifelse(gene %in% top20_up$gene | gene %in% top20_down$gene, gene, NA),
                                                   shape = ifelse(p_val_adj == 0, 17, 19)
                                                  )
-
-
+    
+    
     outfile <- paste0(outDir, title,"_volcano.png")
 
-    p <- ggplot(data = res_table_thres,
-                aes(x = avg_log2FC,
-                y = -log10(p_val_adj),
+    p <- ggplot(data = res_table_thres, 
+                aes(x = avg_log2FC, 
+                y = -log10(p_val_adj), 
                 colour = threshold)) +
     geom_vline(xintercept = c(-0.58,0.58), lty = 4, col="black", lwd = 0.8) +
     geom_hline(yintercept = -log10(padj_cutoff), lty = 4, col="black", lwd = 0.8) +
@@ -2114,25 +2093,24 @@ volcFromFM <- function(seu.obj = NULL, padj_cutoff = 0.01, lfcCut = 0.58, title 
     labs(x="log2(fold change)",
          y="-log10(padj)",
          title=title) + #paste0("Differential expression (",idents.1_NAME ," vs ",idents.2_NAME ,")")
-    #scale_colour_discrete(labels=c(paste0("Down (", cntDwn,")"), "Stable", paste0("Up (", cntUp,")"))) +
+    #scale_colour_discrete(labels=c(paste0("Down (", cntDwn,")"), "Stable", paste0("Up (", cntUp,")"))) + 
     scale_color_manual(values=c("Down" = "blue", "Stable" = "grey","Up" = "red"), labels=c(paste0("Down (", cntDwn,")"), "Stable", paste0("Up (", cntUp,")"))) +
     theme_bw() +
-    theme(plot.title = element_text(size = 20),
-          legend.position = "right",
+    theme(plot.title = element_text(size = 20), 
+          legend.position = "right", 
           legend.title = element_blank()
          )
-
+    
     ggsave(plot = p, file = outfile)
-
+    
 }
 
 ############ vilnPlots ############
-
 vilnPlots <- function(seu.obj = NULL, inFile = NULL, groupBy = "clusterID", numOfFeats = 24, outName = "",
-                      outDir = "", outputGeneList = T, filterOutFeats = c("^MT-", "^RPL", "^RPS"), assay = "RNA", returnViln = T, features = NULL,
+                      outDir = "", outputGeneList = T, filterOutFeats = c("^MT-", "^RPL", "^RPS"), Assay = "RNA", returnViln = T, features = NULL,
                       min.pct = 0.25, only.pos = T, resume = F, resumeFile = NULL
-                     ){
-
+                     ){ 
+    
     if(!resume){
         if(!is.null(inFile)){
             try(seu.obj <- readRDS(file), silent = T)
@@ -2140,30 +2118,31 @@ vilnPlots <- function(seu.obj = NULL, inFile = NULL, groupBy = "clusterID", numO
             seu.obj <- seu.obj
         }
 
-        DefaultAssay(seu.obj) <- assay
+        DefaultAssay(seu.obj) <- Assay
 
         Idents(seu.obj) <- groupBy
         ident.level <- levels(seu.obj@active.ident)
 
         cluster.markers <- FindAllMarkers(seu.obj, only.pos = only.pos, min.pct = min.pct, features = features)
         cluster.markers <- cluster.markers[cluster.markers$p_val_adj < 0.01, ]
-
+        
         if(length(filterOutFeats) > 0){
             cluster.markers <- cluster.markers[!grepl(paste(filterOutFeats,collapse="|"), rownames(cluster.markers)), ]
-        }
-
+        }     
+        
         if (outputGeneList == TRUE){
-            outfile <- paste0(outDir, outName, "_gene_list.csv")
+            dir.create(outDir)
+            outfile <- paste0(outDir, outName, "_",  groupBy, "_gene_list.csv")
             write.csv(cluster.markers, file = outfile)
-        }
-
+        }  
+        
     }else{
         cluster.markers <- read.csv(file = resumeFile, header = T)
         Idents(seu.obj) <- groupBy
     }
-
+    
     if(returnViln){
-
+        
         lapply(unique(cluster.markers$cluster), function(x) {
 
             geneList <- cluster.markers[cluster.markers$cluster == x, ]
@@ -2176,23 +2155,22 @@ vilnPlots <- function(seu.obj = NULL, inFile = NULL, groupBy = "clusterID", numO
                 features = rev(plotList)
             )
 
-            outfile <- paste0(outDir, outName, "_", x, "_top", numOfFeats, "_vlnPlot.png")
+            outfile <- paste0(outDir, outName, "_", x, "_top", numOfFeats, "_vlnPlot.png") 
             png(file = outfile, width=2520, height=1460)
 
             print(seurat.vlnplot)
             dev.off()
         })
     }
-
+    
 }
-
 ############ singleR ############
 
 singleR <- function(seu.obj = NULL, reduction = NULL, clusters = "clusterID",
                     outName = "",  outDir = ""
                      ){
     
-    cntData <- seu.obj@assays$RNA$data
+    cntData <- GetAssayData(seu.obj, slot = "data", assay = "RNA")
     Kotliarov <- scRNAseq::KotliarovPBMCData()
     refs <- list(human_ref1 = celldex::HumanPrimaryCellAtlasData(), 
                  human_ref2 = BlueprintEncodeData(),
@@ -2221,43 +2199,42 @@ singleR <- function(seu.obj = NULL, reduction = NULL, clusters = "clusterID",
     })
 }
 
-
 ############ cusLeg ############
 
 cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID", legLabel = NULL, groupLabel = NULL, colorz = NULL, dotSize = 8,
                    groupBy = "", sortBy = "", labCol = "", headerSize = 6, #add if len labCol == 1 then add col to the df
                    cellHeader = T, bump = 2, nudge_left = 0, nudge_right = 0, topBuffer = 1.05, ymin = 0, compress_y = 0, compress_x = 0.75, titleOrder = NULL, spaceBtwnCols = NULL, breakGroups = F, horizontalWrap = F, returnData = F, overrideData = NULL
                      ){
-
+    
     if(is.null(colorz)){
         legend$colorz <- gg_color_hue(length(legend[[clusLabel]]))
         colorz <- "colorz"
-
+        
     }
-
+    
     if(cellHeader == T){
         if(!is.null(titleOrder)) {
             legend[[groupLabel]] <- factor(legend[[groupLabel]], levels = titleOrder)
         }else{
             legend[[groupLabel]] <- factor(legend[[groupLabel]])
         }
-
-        header <- legend  %>% group_by(!!as.name(groupLabel)) %>% summarize(n = n()) %>% arrange(factor(!!as.name(groupLabel),
+        
+        header <- legend  %>% group_by(!!as.name(groupLabel)) %>% summarize(n = n()) %>% arrange(factor(!!as.name(groupLabel), 
                            levels = groupBy)) %>% mutate(pos = n+1,
                                                          cum_sum = cumsum(pos),
                                                          dfNum = cum_sum-n
                                                         )  %>% as.data.frame()
         nTerms <- max(header$cum_sum) #add this var outsdide of if
-
+        
         if(is.null(rowz)){
             rowz <- ceiling((length(legend[[clusLabel]])+dim(header)[1])/colz)
         }
     }
-
+    
     if(length(spaceBtwnCols) < colz-1){
         message("Invalid spaceBtwnCols entry. Ensure list is correct length!")
     }
-
+    
     #if there is one header...
     if(rowz < max(header$n) & nrow(header) == 1){
         if(!horizontalWrap){
@@ -2265,7 +2242,7 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
         }else{
             leg_y <- rep(seq(rowz, 1, by = -1), each = colz)[1:header$n]
         }
-
+        
         leg_y <- leg_y + compress_y
 
         if(is.null(spaceBtwnCols)){
@@ -2282,7 +2259,7 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
                     }else{
                         rep(cumsum(c(0.5,spaceBtwnCols)), rowz)[1:header$n]
                     }
-                },
+                }, 
                 error = function(e) {
                     if(!horizontalWrap){
                         return(rep(seq(1,colz)/2, each = rowz)[1:header$n])
@@ -2293,11 +2270,11 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
                 }
             )
         }
-
+        
         header$header_x <- leg_x[header$dfNum]
         header$header_y <- leg_y[header$dfNum]+1
         headerBump = T
-
+        
     #else there is more than one header
     }else{
         headerGroups <- seq(1,nrow(header), by = ceiling(nrow(header)/colz))
@@ -2305,40 +2282,40 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
             headerGroups <- sort(c(headerGroups,seq(1,nrow(header), by = 1)[!seq(1,nrow(header), by = 1) %in% headerGroups][1]))
         }
         headData <- header[headerGroups,] %>% mutate(diff = cum_sum - lag(cum_sum, default = 0))
-
+        
         leg_y <- do.call(c,(lapply(headData$diff,function(x){seq(max(headData$diff),max(headData$diff)-x+1, by = -1)})))
-
+        
         if(is.null(spaceBtwnCols)){
             leg_x <- rep(seq(1,colz)/2, headData$diff)
         }else{
             leg_x <- tryCatch(
                 {
                     rep(cumsum(c(0.5,spaceBtwnCols)), headData$diff)
-                },
+                }, 
                 error = function(e) {
                     return(rep(seq(1,colz)/2, headData$diff))
                     message("Invalid spaceBtwnCols entry. Using default spacing of 0.5")
                 }
             )
         }
-
+           
         leg_x <- leg_x[1:(dim(header)[1]+dim(legend)[1])]
         leg_y <- leg_y + compress_y
-
+    
         header$header_x <- leg_x[header$dfNum]
         header$header_y <- leg_y[header$dfNum]
-
+    
         leg_x <- leg_x[-c(header$dfNum)]
         leg_y <- leg_y[-c(header$dfNum)]
         headerBump = F
     }
-
+        
     #legend <- legend %>% arrange(factor(!!as.name(groupLabel), levels = groupBy), !!as.name(sortBy))
     legend <- legend %>% arrange(!!as.name(groupLabel), !!as.name(sortBy))
-
+    
     legend$leg_x <- leg_x
     legend$leg_y <- leg_y
-
+    
     if(!is.null(overrideData)){
         legend <- as.data.frame(overrideData[1])
         header <- as.data.frame(overrideData[2])
@@ -2351,9 +2328,9 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
                     stroke=1,
                     colour="black") +
           geom_text(data = legend, size = 4, mapping = aes(x = leg_x, y = leg_y), label = legend[[clusLabel]], colour = legend[[labCol]]) +
-          geom_text(data = legend, size = 4, mapping = aes(x = leg_x+0.05, y = leg_y), label = legend[[legLabel]], hjust = 0) + #NoLegend() +
+          geom_text(data = legend, size = 4, mapping = aes(x = leg_x+0.05, y = leg_y), label = legend[[legLabel]], hjust = 0) + #NoLegend() + 
           geom_text(data = header, size = headerSize, mapping = aes(x = header_x-0.03, y = header_y), label = header[[groupLabel]], hjust = 0, fontface =2) +
-      theme(axis.text = element_blank(),
+      theme(axis.text = element_blank(), 
             axis.ticks = element_blank(),
             axis.title = element_blank(),
             plot.title = element_blank(),
@@ -2362,7 +2339,7 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
             panel.border = element_blank(),
             panel.background = element_rect(fill = "transparent",colour = NA),
             plot.background = element_rect(fill = "transparent",colour = NA),
-            panel.grid.major = element_blank(),
+            panel.grid.major = element_blank(), 
             panel.grid.minor = element_blank(),
             plot.margin = unit(c(0, 0, 0, 0), "cm")
     ) + coord_cartesian(ylim = c(ymin, max(ifelse(headerBump == T, leg_y+1, leg_y))*topBuffer), expand = TRUE, clip = "off") + scale_x_continuous(limits = c(0.47,colz*compress_x))
@@ -2372,7 +2349,7 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
     }else{
         return(list(legend, header))
     }
-
+        
 }
 
 ############ majorDot ############
@@ -2381,13 +2358,13 @@ majorDot <- function(seu.obj = NULL, groupBy = "",
                      yAxis = NULL, scale = T,
                      features = "", split.by = NULL, cols = c("lightgrey", "blue"), cluster.idents = F
                     ){
-
+    
     t <- try(head(seu.obj@assays$RNA@scale.data),silent = T)
 
     if("try-error" %in% class(t)){
         seu.obj <- ScaleData(seu.obj)
     }
-
+                       
     p <- DotPlot(seu.obj,
                  assay = "RNA",
                  features = features,
@@ -2410,7 +2387,7 @@ majorDot <- function(seu.obj = NULL, groupBy = "",
             legend.key.size = unit(1, "line"),
             panel.border = element_rect(color = "black",
                                         fill = NA,
-                                        size = 1),
+                                        linewidth = 1),
             ) +
       scale_colour_viridis(option="magma", name='Average\nexpression') +
       guides(size=guide_legend(override.aes = list(shape=21, colour="black", fill="white"),
@@ -2418,9 +2395,9 @@ majorDot <- function(seu.obj = NULL, groupBy = "",
       scale_size(range = c(0.5, 8), limits = c(0, 100)) +
       #annotate("rect", xmin = features_cnt$startVal, xmax = features_cnt$endVal, ymin = features_cnt$cluster-0.5, ymax = features_cnt$cluster+0.5, fill = NA, colour = "mediumpurple1", size = 1) +
       {if(!is.null(yAxis)){scale_y_discrete(limits=rev(yAxis))}} +
-      guides(color = guide_colorbar(title = 'Scaled\nExpression'))
-
-
+      guides(color = guide_colorbar(title = 'Scaled\nExpression')) 
+      
+    
     return(p)
 }
 
@@ -2428,9 +2405,9 @@ majorDot <- function(seu.obj = NULL, groupBy = "",
 
 autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
                      MIN_LOGFOLD_CHANGE = 0.5, MIN_PCT_CELLS_EXPR_GENE = 0.1,
-                    filterTerm = "ENSCAFG"
+                    filterTerm = "ENSCAFG", n_feat = 5
                     ){
-
+    
     if(!is.null(file)){
         all.markers <- read.csv(inFile)
     }else if(!is.null(seu.obj)){
@@ -2440,25 +2417,25 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
                                      only.pos = TRUE)
     }
 
-    key.genes <- all.markers[!grepl(filterTerm, row.names(all.markers)),]
+    key.genes <- all.markers[!grepl(paste(filterTerm,collapse="|"), all.markers$gene),] 
     key.genes.sortedByPval = key.genes[order(key.genes$p_val),]
 
-    features <- key.genes.sortedByPval %>%  group_by(cluster) %>% do(head(., n=5))
+    features <- key.genes.sortedByPval %>%  group_by(cluster) %>% do(head(., n=n_feat))
     features <- as.data.frame(features[!duplicated(features$gene),])
 
     #features_cnt <- features %>% count(cluster)
     #features_cnt$n <- rev(features_cnt$n)
     features_cnt <- as.data.frame(table(features$cluster))
     features_cnt$n <- rev(features_cnt$Freq)
-
+    
     features_cnt <- features_cnt %>% mutate(endVal = cumsum(n)+0.5, startVal = endVal-n)
 
     features_cnt$endVal <- rev(features_cnt$endVal)
     features_cnt$startVal <- rev(features_cnt$startVal)
 #     features_cnt$cluster <- as.numeric(features_cnt$cluster)
-        features_cnt$Var1 <- as.numeric(features_cnt$Var1)
+    features_cnt$Var1 <- as.numeric(features_cnt$Var1)
 
-
+    
     p <- DotPlot(seu.integrated.obj,
              assay = "RNA",
              features = rev(features$gene),
@@ -2477,16 +2454,16 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
         legend.key.size = unit(1, "line"),
         panel.border = element_rect(color = "black",
                                     fill = NA,
-                                    size = 1),
+                                    linewidth = 1),
        # ) +
         axis.ticks.x = element_blank()) +
   scale_colour_viridis(option="magma", name='Average\nExpression') +
   guides(size=guide_legend(override.aes = list(shape=21, colour="black", fill="white"),
                            label.position = "bottom")) +
   scale_size(range = c(0.5, 8), limits = c(0, 100)) +
-  annotate("rect", xmin = features_cnt$startVal, xmax = features_cnt$endVal, ymin = features_cnt$Var1-0.5, ymax = features_cnt$Var1+0.5, fill = NA, colour = "mediumpurple1", size = 1) +
-  geom_tile(aes(fill = id, x = 0), size = 1, show.legend = FALSE) +
-  geom_tile(aes(fill = id, x = as.numeric(length(unique(features$gene)))+1), size = 1, show.legend = FALSE) + #need to extract data then add colors from colArray to get this corrected
+  annotate("rect", xmin = features_cnt$startVal, xmax = features_cnt$endVal, ymin = features_cnt$Var1-0.5, ymax = features_cnt$Var1+0.5, fill = NA, colour = "grey20", size = 0.5) +
+  geom_tile(aes(fill = id, x = 0), linewidth = 1, show.legend = FALSE) + 
+  geom_tile(aes(fill = id, x = as.numeric(length(unique(features$gene)))+1), linewidth = 1, show.legend = FALSE) + #need to extract data then add colors from colArray to get this corrected
   #scale_fill_manual(values=c("0" = "#CDAD00","1" = "#FFC125", "2" = "#0288D1", "3" = "blue", "4" = "#00CDCD", "5" = "gold", "6" = "brown")) +
   coord_flip() +
   guides(color = guide_colorbar(title = 'Scaled\nExpression')) +
@@ -2495,7 +2472,7 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
   geom_point(aes(x = as.numeric(length(unique(features$gene)))+1, y=id, size = 100), shape = 21, stroke = 0.75) +
   geom_text(aes(x = 0, label = id), size = 4.5) +
   geom_text(aes(x = as.numeric(length(unique(features$gene)))+1, label = id), size = 4.5)
-
+    
     return(p)
 }
 
@@ -2585,40 +2562,40 @@ stackedBar <- function(
                               #work in progress
 runMonocle <- function(seu.obj = NULL
                     ){
-
+    
     cds <- as.CellDataSet(seu.obj) # make sure non-normlized data are imported
-
+    
     cds <- clusterCells(cds)
     disp_table <- dispersionTable(cds)
     ordering_genes <- subset(disp_table, mean_expression >= 0.1)
     cds <- setOrderingFilter(cds, ordering_genes)
     cds <- reduceDimension(cds)
     cds <- orderCells(cds)
-
+    
     diff_test_res <- differentialGeneTest(cds, fullModelFormulaStr = "~Media")
     ordering_genes <- row.names(subset(diff_test_res, qval < 0.01))
-
+    
     cds <- setOrderingFilter(cds, ordering_genes)
     plot_ordering_genes(cds)
-
+    
     cds <- reduceDimension(cds, max_components = 2, method = 'DDRTree')
     plot_cell_trajectory(cds, color_by = "Hours")
-
-
-
-
+    
+    
+    
+    
     seu.obj.Export <- exportCDS(cds, 'Seurat')
 }
 
 ### trajectory plot from slingshot
 cleanSling <- function(plot = NULL, shape = 21, labCol = "black", size = 8, alpha = 1, rm.na = T, branchData = NULL
                   ) {
-
+    
     pi <- formatUMAP(plot)
 
     #extract label coords and colors
     g <- ggplot_build(pi)
-
+    
     labCords <- as.data.frame(g$data[2]) #add error if labels are not present
     labCordz <- labCords[,c(1:4,7)]
 
@@ -2626,21 +2603,21 @@ cleanSling <- function(plot = NULL, shape = 21, labCol = "black", size = 8, alph
 
     labCordz <- labCordz[order(labCordz$clusterID),]
     labCordz$labCol <- labCol
-
+    
     if(rm.na == T){
         labCordz <- na.omit(labCordz)
     }
-
+    
     #remove old labels
     pi$layers[2] <- NULL
 
     df.list <- list()
-    cnt = 0
+    cnt = 0 
     for (lin in 1:length(branchData)) {
         cnt <- cnt+1
         df <- labCordz[labCordz$clusterID %in% branchData[lin][[1]],]
         #df <- df[order(match(branchData[lin][[1]], labCordz$clusterID)),]
-        df <- left_join(data.frame(clusterID = branchData[lin][[1]]),
+        df <- left_join(data.frame(clusterID = branchData[lin][[1]]),  
                          df,
                          by = "clusterID")
         df$lineage <- names(branchData[lin])
@@ -2651,15 +2628,15 @@ cleanSling <- function(plot = NULL, shape = 21, labCol = "black", size = 8, alph
         df.list[[cnt]] <- df
     }
     lineData <- do.call(rbind, df.list)
-
+    
     #add lines and dots to the stripped plot to create final image
     plot <- pi + geom_segment(data = lineData, aes(x = UMAP1,  xend = UMAP1_end,
                                                    y = UMAP2,  yend = UMAP2_end),
-                              linewidth = 1) +
-    geom_point(data = lineData, aes(x = UMAP1, y = UMAP2), size = 3) +
+                              linewidth = 1) + 
+    geom_point(data = lineData, aes(x = UMAP1, y = UMAP2), size = 3) + 
     geom_point(data = lineData[1,], aes(x = UMAP1, y = UMAP2), size = 1.5, colour = "green")
 
-
+    
     return(plot)
 }
 
@@ -2677,9 +2654,9 @@ createCIBERsort <- function(seu.obj = NULL, groupBy = NULL, downSample = F, outD
         if(normMethod == "log"){
             seu.obj <- NormalizeData(seu.obj)
         }
-
+        
     }
-
+    
     #extract required data for pseudobulk conversion
     if(normMethod == "log"){
         mat <- seu.obj@assays$RNA@data
@@ -2690,17 +2667,17 @@ createCIBERsort <- function(seu.obj = NULL, groupBy = NULL, downSample = F, outD
     colnames(bioRep) <- "cellSource"
     row.names(bioRep) <- colnames(seu.obj)
     bioRep$cellSource <- as.factor(bioRep$cellSource)
-
+    
     #use custom function to convert to pseudobulk
     pbj <- getPb(mat, bioRep)
 
     if(normMethod == "cpm"){
         pbj <- t(t(pbj)/colSums(pbj))*1e6
     }
-
+    
     outfile <- paste0(outDir,outName,"_ciberSort_matrix.csv")
     write.csv(pbj, file = outfile,quote=T)
-
+    
 }
 
 ############ sankeyPlot ############
@@ -2708,20 +2685,20 @@ createCIBERsort <- function(seu.obj = NULL, groupBy = NULL, downSample = F, outD
 sankeyPlot <- function(seu_obj = NULL, new.ident = NULL, old.ident = "clusterID", old.colorz = NULL,
                        new.colorz = NULL, old.labCol = NULL, new.labCol = NULL, flowCol = "grey"
                     ){
-
+    
     Idents(seu_obj) <- new.ident
 
     #get node data
     new <- levels(seu_obj@active.ident)
     new <- paste0("S", new)
     nodeNum <- length(unique(seu.obj@meta.data[[old.ident]])) + length(levels(seu_obj@active.ident)) - 1
-    nodes <- data.frame(node = c(0:nodeNum),
+    nodes <- data.frame(node = c(0:nodeNum), 
                         name = c(as.character(sort(as.numeric(unique(seu.obj@meta.data[[old.ident]])))), new))
 
     #exctra data for plotting
     seu_obj_data <- as.data.frame(seu_obj@meta.data)
     seu_obj_data$barcode <- rownames(seu_obj_data)
-    seu_obj_data <- seu_obj_data[c("barcode", old.ident,new.ident)]
+    seu_obj_data <- seu_obj_data[c("barcode", old.ident,new.ident)] 
     colnames(seu_obj_data) <- c("barcode", "Initial","SubCluster")
     seu_obj_data[c("Initial","SubCluster")] <- lapply(seu_obj_data[c("Initial","SubCluster")], as.character)
 
@@ -2742,7 +2719,7 @@ sankeyPlot <- function(seu_obj = NULL, new.ident = NULL, old.ident = "clusterID"
                           next_node = next_node,
                           fill = factor(node),
                           label = node)) + geom_sankey() +
-    geom_sankey(flow.alpha = 0.5, node.fill = c(old.colorz,new.colorz), flow.fill = flowCol) +
+    geom_sankey(flow.alpha = 0.5, node.fill = c(old.colorz,new.colorz), flow.fill = flowCol) + 
     geom_sankey_label(size = 3.5, color = 1, fill = "white") +
     theme_sankey(base_size = 16) +
     theme(legend.position = "none",
@@ -2751,7 +2728,7 @@ sankeyPlot <- function(seu_obj = NULL, new.ident = NULL, old.ident = "clusterID"
                                       fill = NA,
                                       size = 1),
           plot.margin = margin(t = 7, r = 14, b = 7, l = 7, unit = "pt")) + scale_x_discrete(expand = c(0, 0))
-
+    
     return(p)
 }
 
@@ -2759,37 +2736,37 @@ sankeyPlot <- function(seu_obj = NULL, new.ident = NULL, old.ident = "clusterID"
 
 dotPlotBY_TYPE <- function(seu_obj = NULL, pwdTOvilnCSVoutput = NULL, groupBy = NULL, namedCols = NULL, database = "clfamiliaris_gene_ensembl", exlcude = "", boxColor = "black"
                           ){
-
+    
     df <- read.csv(pwdTOvilnCSVoutput)
-
+    
     ensembl <-  biomaRt::useMart("ensembl", dataset = database)
-
+    
     cl_go_anno <- biomaRt::getBM(
         attributes = c("external_gene_name", "description", "go_id", "name_1006", "namespace_1003", "definition_1006"),
-        filters = c("external_gene_name"),
+        filters = c("external_gene_name"), 
         values = unique(as.character(df$gene)),
         mart = ensembl) %>%
     dplyr::filter(namespace_1003 %in% c("cellular_component", "molecular_function"))
-
+    
     surface <- sort(unique(cl_go_anno$external_gene_name[grep("component of membrane", cl_go_anno$name_1006)]))
     surface.neg <- sort(unique(cl_go_anno$external_gene_name[grep("mitochondrial|integral component of Golgi membrane|intracellular membrane-bounded organelle|nuclear membrane", cl_go_anno$name_1006)]))
     surface <- surface[!(surface %in% surface.neg)]
-
+    
     secreted <- sort(unique(cl_go_anno$external_gene_name[
         c(grep("extracellular space", cl_go_anno$name_1006),
           grep("granzyme", cl_go_anno$description))]))
-
+    
     tf <- sort(unique(cl_go_anno$external_gene_name[
         grep("transcription factor activity|transcription activator activity|transcription repressor activity|transcription coactivator activity|DNA binding|DNA-binding",cl_go_anno$name_1006)]))
-
+    
     intersect(surface, secreted)
     intersect(surface, tf)
     intersect(secreted, tf)
-
+    
     surface <- surface[!(surface %in% tf)]
     secreted <- secreted[(!(secreted %in% surface)) & (!(secreted %in% tf))]
     neg <- sort(unique(df$gene[!(df$gene %in% c(surface, secreted, tf))]))
-
+    
     anno.df <- data.frame(
         gene = c(surface, secreted, tf, neg),
         anno = c(rep("cell surface", length(surface)),
@@ -2797,16 +2774,16 @@ dotPlotBY_TYPE <- function(seu_obj = NULL, pwdTOvilnCSVoutput = NULL, groupBy = 
                  rep("transcription factor", length(tf)),
                  rep("", length(neg)))) %>%
     dplyr::filter(!(gene %in% exlcude))
-
+    
     df.plot <- df %>% dplyr::left_join(anno.df, by = c("gene")) %>%
-    dplyr::select(gene, cluster, anno, avg_log2FC)
-
+    dplyr::select(gene, cluster, anno, avg_log2FC) 
+    
     df.plot$anno <- factor(df.plot$anno, levels = c("cell surface", "secreted", "transcription factor", ""))
 
     if(is.null(groupBy)){
         Idents(seu.obj) <- "clusterID_sub"
     }
-
+    
     p <- mapply(function(i, j){
         x <- df.plot %>%
         distinct(gene,.keep_all= TRUE) %>%
@@ -2814,19 +2791,19 @@ dotPlotBY_TYPE <- function(seu_obj = NULL, pwdTOvilnCSVoutput = NULL, groupBy = 
         dplyr::group_by(cluster) %>%
         dplyr::top_n(5, avg_log2FC) %>%
         #dplyr::group_by(cluster) %>%
-        dplyr::arrange(gene, .by_group = T) %>%
+        dplyr::arrange(gene, .by_group = T) %>% 
         dplyr::group_by(cluster) %>%
         mutate(n = n())
-
+        
         features_cnt <- x[!duplicated(x$cluster),]#  x %>% unique(cluster)
         features_cnt$n <- rev(features_cnt$n)
-
+        
         features_cnt <- as.data.frame(features_cnt) %>% mutate(endVal = cumsum(n)+0.5, startVal = endVal-n)
-
+        
         features_cnt$endVal <- rev(features_cnt$endVal)
         features_cnt$startVal <- rev(features_cnt$startVal)
-        features_cnt$cluster <- as.numeric(features_cnt$cluster)+1
-
+        features_cnt$cluster <- as.numeric(features_cnt$cluster)+1 
+        
         p <- DotPlot(seu.obj, features = rev(x$gene), group.by = groupBy) +
         geom_point(aes(size=pct.exp), shape = 21, colour="black", stroke=0.5) +
         labs(size='Percent\nExpression', title = j)  +
@@ -2841,15 +2818,15 @@ dotPlotBY_TYPE <- function(seu_obj = NULL, pwdTOvilnCSVoutput = NULL, groupBy = 
                                           fill = NA,
                                           size = 1),
               axis.ticks.x = element_blank()) +
-        scale_colour_continuous_diverging(palette = 'Blue-Red', mid = 0) +
-        guides(size=guide_legend(override.aes = list(shape=21,
+        scale_colour_continuous_diverging(palette = 'Blue-Red', mid = 0) + 
+        guides(size=guide_legend(override.aes = list(shape=21, 
                                                      colour="black", fill="white"),
                                  label.position = "bottom")) +
         scale_size(range = c(0.5, 8), limits = c(0, 100)) +
         annotate("rect", xmin = features_cnt$startVal, xmax = features_cnt$endVal, ymin = features_cnt$cluster-0.5, ymax = features_cnt$cluster+0.5, fill = NA, colour = boxColor, size = 1) +
-        geom_tile(aes(fill = id, x = 0), size = 1, show.legend = FALSE) +
-        geom_tile(aes(fill = id, x = as.numeric(length(unique(x$gene)))+1), size = 1, show.legend = FALSE) +
-        scale_fill_manual(values=namedCols) +
+        geom_tile(aes(fill = id, x = 0), size = 1, show.legend = FALSE) + 
+        geom_tile(aes(fill = id, x = as.numeric(length(unique(x$gene)))+1), size = 1, show.legend = FALSE) + 
+        scale_fill_manual(values=namedCols) + 
         coord_flip() +
         guides(color = guide_colorbar(title = 'Scaled\nExpression')) +
         scale_y_discrete(expand = c(0, 0)) +
@@ -2860,26 +2837,26 @@ dotPlotBY_TYPE <- function(seu_obj = NULL, pwdTOvilnCSVoutput = NULL, groupBy = 
                 j = c("Cell\nsurface","Secreted","Transcription\nfactor","Remaining\ngenes"),
                 SIMPLIFY = F,
                 USE.NAMES = F)
-
+    
     p[[1]] <- p[[1]] + NoLegend()
     p[[2]] <- p[[2]] + theme(axis.title.y = element_blank())
     p[[3]] <- p[[3]] + theme(axis.title.y = element_blank()) + NoLegend()
     p[[4]] <- p[[4]] + theme(axis.title.y = element_blank()) + NoLegend()
-
-    finalPlot <- plot_grid(plotlist = p, nrow = 1, labels = "none", label_size = 8, rel_widths = c(1,1,1,1))
-
+    
+    finalPlot <- plot_grid(plotlist = p, nrow = 1, labels = "none", label_size = 8, rel_widths = c(1,1,1,1)) 
+    
     return(finalPlot)
 }
 
 ############ prettyViln ############
 
 prettyViln <- function(plot = NULL, colorData = NULL, nrow = 2, ncol = NULL){
-
+    
     if(is.null(ncol)){
         ncol = ceiling(sqrt(length(plot)))
     }
-
-
+    
+    
     p <- lapply(plot, function(x) x + theme(axis.title = element_blank(),
                                           axis.text = element_blank(),
                                           axis.text.x = element_text(angle = 0, vjust = 0, hjust=0.5, size =5 ),
@@ -2890,26 +2867,26 @@ prettyViln <- function(plot = NULL, colorData = NULL, nrow = 2, ncol = NULL){
                                           plot.margin = margin(5.5, 0, 0, 0, "pt")
                                          ) + coord_cartesian(expand = TRUE)
                 )
-
+    
     if(!is.null(colorData)){
-        g <- ggplot(colArray, aes(x = clusterID_sub, y = 1, fill = clusterID_sub, label = clusterID_sub)) +
+        g <- ggplot(colArray, aes(x = clusterID_sub, y = 1, fill = clusterID_sub, label = clusterID_sub)) + 
         geom_tile(fill = "transparent") +
         geom_point(shape = 21, stroke = 0.75, size = 11) +
         geom_text(fontface = "bold", size = 6, color = colArray$labCol) + theme_bw(base_size = 12) +
         scale_fill_manual(values = colArray$colour) + scale_y_discrete(expand = c(0, 0)) +
         theme(legend.position = "none", panel.spacing = unit(0, "lines"),
-              panel.background = element_blank(),
+              panel.background = element_blank(), 
               panel.border = element_blank(),
-              plot.background = element_blank(),
+              plot.background = element_blank(), 
               plot.margin = margin(0, 0, 0, 0, "pt"),
               axis.title = element_blank(),
               axis.ticks = element_blank(),
               axis.text = element_blank(),
-              panel.grid.major = element_blank(),
+              panel.grid.major = element_blank(), 
               panel.grid.minor = element_blank()
              )
     }
-
+        
         patch <- area()
         counter=0
         for (i in 1:nrow) {
@@ -2920,19 +2897,19 @@ prettyViln <- function(plot = NULL, colorData = NULL, nrow = 2, ncol = NULL){
                 }
             }
         }
-
-
-        pi <- Reduce( `+`, p ) + plot_layout(design = patch,
-                                                             widths = c(rep.int(1, ncol)),
+        
+    
+        pi <- Reduce( `+`, p ) + plot_layout(design = patch, 
+                                                             widths = c(rep.int(1, ncol)), 
                                                              heights = c(rep.int(1, nrow))
-                                                            )
+                                                            ) 
         return(pi)
 }
 
-############ prettyVolc ############
+############ prettyVolc ############                                          
 prettyVolc <- function(plot = NULL, rightLab = NULL, leftLab = NULL, rightCol = "red", leftCol = "blue", arrowz = T
                     ){
-
+    
     p <- plot + scale_x_symmetric(mid = 0) + theme(legend.position = c(0.10, 0.9),
                                                       legend.background = element_blank(),
                                                       legend.key = element_blank(),
@@ -2943,84 +2920,95 @@ prettyVolc <- function(plot = NULL, rightLab = NULL, leftLab = NULL, rightCol = 
                                                       panel.background = element_blank(),
                                                       axis.line = element_line(color="black"),
                                                       plot.title = element_blank()
-                                                     ) +
+                                                     ) + 
     {if(arrowz){
-        annotate("segment", x = 0.58*1.5,
-                 y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06,
-                 xend = c(max(abs(plot$data$log2FoldChange)),-max(abs(plot$data$log2FoldChange)))[1],
-                 yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06,
+        annotate("segment", x = 0.58*1.5, 
+                 y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
+                 xend = c(max(abs(plot$data$log2FoldChange)),-max(abs(plot$data$log2FoldChange)))[1], 
+                 yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
                  lineend = "round", linejoin = "bevel", linetype ="solid", colour = rightCol,
                  size = 1, arrow = arrow(length = unit(0.1, "inches"))
-                )
+                ) 
         }} +
     {if(arrowz){
-        annotate("segment", x = -0.58*1.5,
-                 y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06,
+        annotate("segment", x = -0.58*1.5, 
+                 y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
                  xend = c(max(abs(plot$data$log2FoldChange)),-max(abs(plot$data$log2FoldChange)))[2],
-                 yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06,
+                 yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
                  lineend = "round", linejoin = "bevel", linetype ="solid", colour = leftCol,
                  size = 1, arrow = arrow(length = unit(0.1, "inches"))
                 )
-        }} +
+        }} + 
     {if(!is.null(rightLab)){
-        annotate(geom = "text", x = (max(abs(plot$data$log2FoldChange))-0.58*1.5)/2+0.58*1.5,
+        annotate(geom = "text", x = (max(abs(plot$data$log2FoldChange))-0.58*1.5)/2+0.58*1.5, 
                  y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.09,
                  label = rightLab,
                  hjust = 0.5,
                  size = 5)
-        }} +
+        }} + 
     {if(!is.null(leftLab)){
-        annotate(geom = "text", x = -(max(abs(plot$data$log2FoldChange))-0.58*1.5)/2-0.58*1.5,
+        annotate(geom = "text", x = -(max(abs(plot$data$log2FoldChange))-0.58*1.5)/2-0.58*1.5, 
                  y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.09,
                  label = leftLab,
                  hjust = 0.5,
                  size = 5)
     }} + NoLegend()
-
+    
     return(p)
 }
 
 
 ############ plotGSEA ############
+#TO DO:L fix problem with trimTerm
+
 plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
-                     category = "C5", species = "dog", upCol = "red", dwnCol = "blue",
-                     pvalueCutoff = 0.05, subcategory = NULL, termsTOplot = 8, upOnly = F, trimTerm = T
+                     category = "C5", species = "dog", upCol = "red", dwnCol = "blue", saveRes = NULL,
+                     pvalueCutoff = 0.05, subcategory = NULL, termsTOplot = 8, upOnly = F, trimTerm = T, size = 4
                     ){
     if(!is.null(pwdTOgeneList)){
         geneLists <- read.csv(pwdTOgeneList)
-
+        
         geneListUp <- geneLists %>% arrange(padj) %>% filter(log2FoldChange > 0) %>% .$gene
         geneListDwn <- geneLists %>% arrange(padj) %>% filter(log2FoldChange < 0) %>% .$gene
-
+        
     }else{
         geneListUp <- geneList
     }
+    
 
-
-
+    
     can_gene_sets <- as.data.frame(msigdbr(species = species, category = category, subcategory = subcategory))
     msigdbr_list <- split(x = can_gene_sets$gene_symbol, f = can_gene_sets$gs_name)
     datas <- can_gene_sets %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
-
+    
     enriched_up <- as.data.frame(enricher(gene = geneListUp, TERM2GENE = datas, pvalueCutoff = pvalueCutoff)
                                 ) %>% arrange(p.adjust) %>% mutate(x_axis = -log10(p.adjust),
                                                                    direction = "UP")
     if(!upOnly){
-        enriched_dwn <- as.data.frame(enricher(gene = geneListDwn,
+        enriched_dwn <- as.data.frame(enricher(gene = geneListDwn, 
                                                TERM2GENE = datas, pvalueCutoff = pvalueCutoff)
                                      ) %>% arrange(p.adjust) %>% mutate(x_axis = log10(p.adjust),
                                                                         direction = "DOWN")
-
-        enriched <- rbind(enriched_up[1:ifelse(nrow(enriched_up) > termsTOplot, termsTOplot, length(enriched_up)),],
+    
+        enriched <- rbind(enriched_up[1:ifelse(nrow(enriched_up) > termsTOplot, termsTOplot, length(enriched_up)),], 
                           enriched_dwn[1:ifelse(nrow(enriched_dwn) > termsTOplot, termsTOplot, length(enriched_up)),])
-
+        
     } else {
         enriched <- enriched_up[1:ifelse(nrow(enriched_up) > termsTOplot, termsTOplot, nrow(enriched_up)),]
 
     }
+    
+    if(!is.null(saveRes)){
+        if(!exists("enriched_dwn")){
+            write.csv(enriched_up, file = saveRes)
+        } else {
+             write.csv(rbind(enriched_up,enriched_dwn), file = saveRes)
+        }
+       
+    }
 
     enriched <- enriched %>% arrange(desc(x_axis))
-
+    
     if(trimTerm){
         enriched$Description <- gsub("REACTOME_", "", enriched$Description)
         enriched$Description <- gsub("_AND_", "_&_", enriched$Description)
@@ -3028,26 +3016,34 @@ plotGSEA <- function(pwdTOgeneList = NULL, geneList = NULL, geneListDwn = NULL,
         enriched$Description <- gsub("GOBP_", "", enriched$Description)
         enriched$Description <- gsub("GOCC_", "", enriched$Description)
         enriched$Description <- gsub("GOMF_", "", enriched$Description)
-        enriched$Description <- unlist(lapply(enriched$Description, str_trunc, width = 55, side = "right", ellipsis = "*"))
+        enriched$Description <- gsub("HP_", "", enriched$Description)
+        enriched$Description <- gsub("POSITIVE_", "POS_", enriched$Description)
+        enriched$Description <- gsub("ANTIGEN_PROCESSING_&_", "", enriched$Description)
+        enriched$Description <- gsub("ADAPTIVE_IMMUNE_RESPONSE_BASED_ON_SOMATIC_RECOMBINATION_OF_IMMUNE_RECEPTORS_BUILT_FROM_IMMUNOGLOBULIN_SUPERFAMILY_DOMAINS", "ADAPTIVE_IMMUNE_RESPONSE_BASED_ON_SOMATIC_RECOMBINATION", enriched$Description)
+        enriched$Description <- gsub("PROTON_TRANSPORTING_ATP_SYNTHASE_ACTIVITY_ROTATIONAL_MECHANISM", "PROTON_TRANSPORTING_ATP_SYNTHASE_ACTIVITY", enriched$Description)
+        
+#         enriched$Description <- unlist(lapply(enriched$Description, str_trunc, width = 50, side = "right", ellipsis = "*")) ### TO DO: this causes problems if trunc results in the same string -- need to ensure that is handled before adding this back in
     }
-
+    
+    #remove NAs and then plot
+    enriched <- na.omit(enriched)
     p <- ggplot(data=enriched, aes(x=x_axis, y=Description, fill = direction)) +
     geom_bar(stat="identity") +  theme_classic() + scale_y_discrete(limits=rev(enriched$Description)
-                                                                   ) +
-    geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), hjust = ifelse(enriched$x_axis > 0, 1,0), size = 4) +
+                                                                   ) + 
+    geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), hjust = ifelse(enriched$x_axis > 0, 1,0), size = size) + 
     theme(axis.ticks.y = element_blank(),
           axis.text.y = element_blank(),
           axis.title.y = element_blank(),
           axis.line.y = element_blank(),
           legend.justification = "top"
          ) + coord_cartesian(clip = "off") + scale_x_symmetric(mid = 0, name = "Signed log10(padj)") + NoLegend() + scale_fill_manual(values = c(upCol,dwnCol))
-
-    return(p)
+    
+    return(p)   
 }
 
 ############ crossSpeciesDEG ############
 ###TO DO: fix intercettion line
-crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1 = "Canine", species2 = "Human",
+crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1 = "Canine", species2 = "Human", 
                             nlab = 10, nlab_axis = 2, overlapGenes = overlapGenes, colUp = "red",
                             colDwn = "blue", cONtrast = c("celltype_1","celltype_2"), seed = 12,
                             hjustvar = c(1,0.5,0,0.5,1,0,1,0),
@@ -3057,27 +3053,27 @@ crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1
 
     geneLists.spec1 <- read.csv(pwdTOspecies1)
     geneLists.spec2 <- read.csv(pwdTOspecies2)
-
+    
     overlapGenes <- intersect(rownames(seu.obj.k9),rownames(seu.obj.hu))
     # overlapGenes <- intersect(geneLists.hu$gene,geneLists.can$gene)
-
+    
     geneLists.spec1 <- geneLists.spec1 %>% mutate(species = species1,
                                                   signed_pVal_spec1 = ifelse(log2FoldChange > 0, -log10(padj), log10(padj))
                                                  ) %>% filter(gene %in% overlapGenes)# %>% top_n(n = ds, wt = signed_pVal_hu)
-
+    
     geneLists.spec2 <- geneLists.spec2 %>% mutate(species = species2,
                                                   signed_pVal_spec2 = ifelse(log2FoldChange > 0, -log10(padj), log10(padj))
                                                  ) %>% filter(gene %in% overlapGenes)# %>% top_n(n = ds, wt = signed_pVal_can)
-
+    
     geneList <- unique(c(geneLists.spec1$gene, geneLists.spec2$gene)) %>% as.data.frame()
     colnames(geneList) <- "gene"
-
+    
     #add intersect to only plot overlappling genes btwn species -- done above?
-
-
-    geneList <- geneList %>% left_join(geneLists.spec1[,c("gene","species","signed_pVal_spec1")],
-                                       by = "gene") %>% left_join(geneLists.spec2[,c("gene","signed_pVal_spec2")],
-                                                                  by = "gene") %>% replace(is.na(.), 0) %>%
+    
+    
+    geneList <- geneList %>% left_join(geneLists.spec1[,c("gene","species","signed_pVal_spec1")], 
+                                       by = "gene") %>% left_join(geneLists.spec2[,c("gene","signed_pVal_spec2")], 
+                                                                  by = "gene") %>% replace(is.na(.), 0) %>% 
     mutate(species = ifelse(species == "0", species2,species1),
            species = ifelse(signed_pVal_spec2 != "0" & signed_pVal_spec1 != "0", "Both",species1),
         sig = ifelse(signed_pVal_spec2*signed_pVal_spec1 == 0,signed_pVal_spec2+signed_pVal_spec1,signed_pVal_spec2*signed_pVal_spec1) ,
@@ -3086,15 +3082,15 @@ crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1
                              signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec1 > 0 ~ "axis1",
                              signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec2 > 0 ~ "axis2",
                              signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec1 < 0 ~ "axis3",
-                             signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec2 < 0 ~ "axis4",
+                             signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec2 < 0 ~ "axis4",                             
                              signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 > 0 & signed_pVal_spec2 < 0 ~ "conflict1",
                              signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 < 0 & signed_pVal_spec2 > 0 ~ "conflict2",
                             ),
-
+       
        label = ifelse(sig != 0, gene, NA)
-      )  %>% arrange(-abs(sig)) %>% group_by(direction) %>% #arrange(p_val_adj) %>%
+      )  %>% arrange(-abs(sig)) %>% group_by(direction) %>% #arrange(p_val_adj) %>% 
             mutate(lab=ifelse(row_number() <= nlab
-                              & signed_pVal_spec2*signed_pVal_spec1 != 0 , gene, ifelse(signed_pVal_spec2*signed_pVal_spec1 == 0 & row_number() <= nlab_axis, gene, NA)),
+                              & signed_pVal_spec2*signed_pVal_spec1 != 0 , gene, ifelse(signed_pVal_spec2*signed_pVal_spec1 == 0 & row_number() <= nlab_axis, gene, NA)), 
                    lab_col=case_when(direction == "up" ~ colUp,
                                      direction == "dwn" ~ colDwn,
                                      direction == "axis1" ~ "black",
@@ -3103,8 +3099,8 @@ crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1
                                      direction == "axis4" ~ "black",
                                      direction == "conflict1" ~"hotpink",
                                      direction == "conflict2" ~"hotpink")
-                  )
-
+                  ) 
+    
     anno.df <- as.data.frame(list(
         direction = c("axis1","axis2","axis3","axis4","conflict1","conflict2","up","dwn"),
         xpos = c(Inf,0,-Inf,0,Inf,-Inf,Inf,-Inf),
@@ -3114,35 +3110,35 @@ crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1
         colz = c("black","black","black","black","hotpink","hotpink",colUp,colDwn)
     ))
 
-
+    
     annotationz <- geneList %>% group_by(direction) %>% summarize(cntz = n()) %>% left_join(anno.df, by = "direction")
 
     if(saveGeneList){
         write.csv(geneList, file = paste0(outDir,species1,"_v_", species2, "_", cONtrast[1],"_",cONtrast[2],".csv"), row.names = F)
     }
-
+    
     p <- ggplot(geneList, aes(x=signed_pVal_spec1,y=signed_pVal_spec2)) + geom_hline(yintercept=0,linetype=2) +
-    geom_vline(xintercept=0,linetype=2) +
-    geom_point() +
-    geom_label_repel(max.overlaps = Inf, size=2, label = geneList$lab, color = geneList$lab_col, show.legend = F, seed = seed) +
-    theme_classic() + scale_x_symmetric(mid = 0) + scale_y_symmetric(mid = 0) +
+    geom_vline(xintercept=0,linetype=2) + 
+    geom_point() + 
+    geom_label_repel(max.overlaps = Inf, size=2, label = geneList$lab, color = geneList$lab_col, show.legend = F, seed = seed) + 
+    theme_classic() + scale_x_symmetric(mid = 0) + scale_y_symmetric(mid = 0) + 
     geom_label(data = annotationz, aes(x = xpos,y = ypos, hjust = hjustvar, vjust = vjustvar, label = cntz), color = annotationz$colz) +
-    labs(x = paste0(species1, " " ,cONtrast[1]," vs ",cONtrast[2]," DE signed log10(p.adj)"),
-                    y = paste0(species2, " ",cONtrast[1]," vs ",cONtrast[2]," DE signed log10(p.adj)"), title = paste0(species1, " and ", species2," " ,cONtrast[1]," vs ",cONtrast[2])) + coord_cartesian(clip = 'off') +
+    labs(x = paste0(species1, " " ,cONtrast[1]," vs ",cONtrast[2]," DE signed log10(p.adj)"), 
+                    y = paste0(species2, " ",cONtrast[1]," vs ",cONtrast[2]," DE signed log10(p.adj)"), title = paste0(species1, " and ", species2," " ,cONtrast[1]," vs ",cONtrast[2])) + coord_cartesian(clip = 'off') + 
     theme(plot.title = element_text(size = 20))
 
     return(p)
-
+    
 }
-
+    
 
 ############ skewPlot ############
 skewPlot <- function(seu.obj = seu.obj
                     ){
-
+    
     pct.df <- table(seu.obj$majorID_sub, seu.obj$name) %>% melt() %>% group_by(Var.2) %>% mutate(samN = sum(value))
     pct.df$Var.1 <- as.factor(pct.df$Var.1)
-
+    
     pct.df$pct <- pct.df$value/pct.df$samN*100
     pct.df$cellSource <- ifelse(grepl("tils",pct.df$Var.2),"TILs","Blood")
 
@@ -3156,11 +3152,11 @@ skewPlot <- function(seu.obj = seu.obj
     pct.df <- pct.df %>% left_join(status, by = "Var.1")
 
     pct.df$lab_col <- as.factor(pct.df$lab_col)
-
+    
     p <- ggplot(pct.df, aes(x = Var.1, y = pct, fill = lab_col)) +
     stat_summary(fun = mean, geom = "bar", width = 0.7) +
-    stat_summary(fun.data = mean_se, geom = "errorbar",width = 0) +
-    scale_y_continuous(limits = c(0, 100), expand = expansion(mult = c(0, 0))) +
+    stat_summary(fun.data = mean_se, geom = "errorbar",width = 0) + 
+    scale_y_continuous(limits = c(0, 100), expand = expansion(mult = c(0, 0))) + 
     labs(x = "Cell type", y = "Percent total") +
     theme(
         panel.grid.major = element_blank(),
@@ -3183,48 +3179,117 @@ skewPlot <- function(seu.obj = seu.obj
     return(p)
 }
 
-
 ############ ExportToCB_cus ############
 
 #need to update to get barcode in first column
-ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./output/", markers = NULL, reduction = "umap", test = F, skipEXPR=F, colsTOkeep=NULL,
-                           feats = c("PTPRC", "CD3E", "CD8A", "GZMA",
-                                     "IL7R", "ANPEP", "FLT3", "DLA-DRA",
+ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./output/", markers = NULL, reduction = "umap", test = F, skipEXPR = F, colsTOkeep = NULL,
+                           feats = c("PTPRC", "CD3E", "CD8A", "GZMA", 
+                                     "IL7R", "ANPEP", "FLT3", "DLA-DRA", 
                                      "CD4", "MS4A1", "PPBP","HBM")
-
+                          
                           ){
-
+    
     outDir <- paste0(outDir,dataset.name, "/")
     dir.create(outDir)
-
+    
     if(test){seu.obj <- subset(x = seu.obj, downsample = 500)}
 
-
+    
     meta <- seu.obj@meta.data
     meta <- rownames_to_column(meta, "barcode")
     if(!is.null(colsTOkeep)){
         meta <- meta[ ,colnames(meta) %in% c("barcode",colsTOkeep)]
     }
     write.table(meta, paste0(outDir,"meta.tsv"), quote=FALSE, sep='\t', row.names = F)
-
+    
     quickGenes <- as.data.frame(feats[feats %in% rownames(seu.obj)])
     colnames(quickGenes) <- "symbol"
     write.csv(quickGenes, paste0(outDir,"quickGenes.csv"), quote=FALSE, row.names = F)
-
+    
     markers <- read.csv(markers)
     markers <- markers[c("cluster","gene","avg_log2FC","p_val_adj")]
     #colnames(markers)[3,4] <- c("avg_diff","p_val")
     write.table(markers,paste0(outDir,"markers.tsv"), quote=FALSE, sep='\t', row.names = F)
-
+    
     if(!skipEXPR){
-        data.df <- as.data.frame(seu.obj@assays$RNA@data)
+        data.df <- as.data.frame(seu.obj@assays$RNA@layers$data)
+        colnames(data.df) <- colnames(seu.obj)
+        rownames(data.df) <- rownames(seu.obj)
         data.df <- rownames_to_column(data.df, "symbol")
         write.table(data.df, paste0(outDir,"exprMatrix.tsv"), quote=FALSE, sep='\t', row.names = F)
         R.utils::gzip(paste0(outDir,"exprMatrix.tsv"), overwrite = TRUE)
     }
-
+    
     data.df <- as.data.frame(seu.obj[[reduction]]@cell.embeddings)
     data.df <- rownames_to_column(data.df, "barcode")
-    write.table(data.df,paste0(outDir,reduction,".coords.tsv"), quote=FALSE, sep='\t', row.names = F)
+    write.table(data.df,paste0(outDir,"umap.coords.tsv"), quote=FALSE, sep='\t', row.names = F)
+    
+}
 
+############ convertTOclusID ############
+#' convert string cell types to sorted numerical IDs  
+#'
+#' @param seu.obj Seurat object to process
+#' @param metaSlot a valid metadata slot to convert to numerical ID
+#' @param newMetaName optional name for the new metadata slot. Default =  paste0(metaSlot, "_clusID")
+#' @return Seurat object with new metadata slot with numerical cluster ID with lowest value corresponding to largest cluster
+#' @examples 
+#' @export convertTOclusID(seu.obj, metaSlot = "majorID")
+
+convertTOclusID <- function(
+    seu.obj = seu.obj, 
+    metaSlot = NULL,
+    newMetaName = NULL
+){
+    
+    #check input
+    if(is.null(newMetaName)){
+        newMetaName <- paste0(metaSlot, "_clusID")
+    }
+        
+    #extract and order counts by string cluster
+    clusterID_final <- table(seu.obj@meta.data[metaSlot]) %>% as.data.frame() %>% arrange(desc(Freq)) %>%
+    mutate(clusterID_final=row_number()-1) %>% arrange(clusterID_final) 
+   
+    #calculate numerical cluster ID (0 for largest cluster)
+    newID <- clusterID_final$clusterID_final
+    names(newID) <- clusterID_final[ ,metaSlot]
+    Idents(seu.obj) <- metaSlot
+    seu.obj <- RenameIdents(seu.obj, newID)
+    seu.obj@meta.data[newMetaName] <- Idents(seu.obj)
+    return(seu.obj)
+}
+
+
+############ cleanMeta ############
+#' Remove extra metadata slots to tidy up Seurat object
+#'
+#' @param seu.obj Seurat object to process
+#' @param metaSlot_keep Optional list of column names to keep. If specified this will be the only parameter used
+#' @param metaSlot_remove Optional list of column names to discard.
+#' @param grepTerms Optional list of terms to search for in metadata columns to then discard.
+#'
+#' @return Seurat object with cleaned metadata
+#' @examples 
+#' @export cleanMeta(seu.obj)
+
+cleanMeta <- function(
+    seu.obj = seu.obj, 
+    metaSlot_keep = NULL,
+    metaSlot_remove = NULL,
+    grepTerms = c("DF", "pANN", "snn_res")
+){
+    if(!is.null(metaSlot_keep)){
+        seu.obj@meta.data <- seu.obj@meta.data %>% 
+            select(all_of(metaSlot_keep))
+    } else{
+        seu.obj@meta.data <- seu.obj@meta.data[ ,!grepl(paste(grepTerms, 
+                                                          collapse = "|"), colnames(seu.obj@meta.data))]
+        
+        seu.obj@meta.data <- seu.obj@meta.data %>% 
+            select(all_of(colnames(seu.obj@meta.data)[!colnames(seu.obj@meta.data) %in% metaSlot_remove]))
+    }
+    
+    
+    return(seu.obj)
 }
