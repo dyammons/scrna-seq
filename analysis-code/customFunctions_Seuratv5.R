@@ -2500,30 +2500,65 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
 }
 
 ############ stackedBar ############
-                              #work in progress
-stackedBar <- function(seu.obj = NULL, downSampleBy = "orig.ident", groupBy = "orig.ident", clusters = "clusterID"
-                    ){
-    
-    seu.int.hiQC <- seu.obj
-    DefaultAssay(seu.int.hiQC) <- "RNA"
-    
-    Idents(seu.int.hiQC) <- downSampleBy
-    
-    set.seed(12)
-    seu.int.hiQC.subsampled <- subset(x = seu.int.hiQC, downsample = min(table(seu.int.hiQC@active.ident)))
-    
-    groupByList <- seu.int.hiQC.subsampled@meta.data[[groupBy]]
-    clusterList <- seu.int.hiQC.subsampled@meta.data[[clusters]]
+#' Generate a stacked bar graph from a Seurat object
+#'
+#' @param seu.obj Seurat object to process
+#' @param groupBy a valid metadata slot that the bar chart will be colorized by
+#' @param clusters a valid metadata slot that will be the rows of the barchart
+#' @param downSampleBy depreciated, will not be used. If you want to down sample, do so before hand
+#' @param flipOrder logical if TRUE the ordering of the groupBy colorization will be filpped
+#'        If using flipOrder, be careful when attempting to re-color the plot
+#'
+#' @return stack bar graph showing proportion of "groupBy" within each "clusters"
+#'
+#' @examples stackedBar(seu.obj, groupBy = "orig.ident", clusters = "clusterID")
+#'
+#' @export 
 
-    cluster_freq.table <- as.data.frame(table(groupByList, clusterList)) %>% melt()
+stackedBar <- function(
+    seu.obj = NULL, 
+    groupBy = "orig.ident", 
+    clusters = "clusterID",
+    flipOrder = F,
+    downSampleBy = NULL
+){
+    
+    #check input
+    if(!is.factor(seu.obj@meta.data[[groupBy]]) & !is.factor(seu.obj@meta.data[[clusters]])){
+        message(paste("\nINFO: The metadata slot(s)",
+                      groupBy, "and/or", clusters, "are/is not a factor data type.",
+                      "It is reccomended that the slots be converted to factors with", 
+                      "the levels in the order that you want them to be plotted.",
+                      "\n\nProceeding with plotting despite not using factors."))
+    }
+    
+    #extract and clean dataframe
+    cluster_freq.table <- as.data.frame(
+        table(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[[clusters]])) %>% melt()
     cluster_freq.table <- cluster_freq.table[,-3]
     colnames(cluster_freq.table) <- c("Sample", "ClusterID", "Count")
+    
+    #convert to proportion within each "clusters" and remove 0 values
+    cluster_freq.table <- cluster_freq.table %>% group_by(ClusterID) %>%
+    mutate(pct = round(prop.table(Count), 2)) %>% filter(Count !=  0)
 
-    cluster_freq.table <- cluster_freq.table %>% dplyr::group_by(ClusterID) %>%
-    mutate(pct = round(prop.table(Count),2)) %>% filter(Count !=  0)
-
+    if(flipOrder){
+        if(is.factor(seu.obj@meta.data[[groupBy]])){
+            cluster_freq.table$Sample <- factor(cluster_freq.table$Sample, 
+                                                levels = rev(levels(cluster_freq.table$Sample))
+                                               )
+        } else{
+            message(paste("\nINFO: The", groupBy, "metadata slot is not a factor.",
+                          "To use the flipOrder option you must first convert the",
+                          "metadata slot to a factor.\n\nIgnoring flipOrder option."
+                         )
+                   )
+        }
+    }
+    
+    #plot the data
     p <- ggplot(cluster_freq.table, aes(x = ClusterID, y = pct, fill = factor(Sample))) +
-    geom_bar(stat = "identity", position = "fill", width = 1, colour="white") +
+    geom_bar(stat = "identity", position = "fill", width = 1, colour = "white") +
     theme_classic() +
     theme(title = element_text(size= 14),
           legend.title = element_blank(),
@@ -2533,8 +2568,8 @@ stackedBar <- function(seu.obj = NULL, downSampleBy = "orig.ident", groupBy = "o
           plot.title = element_blank(),
           axis.line = element_line(colour = "black"),
           legend.key.size = unit(1,"line"),
-          axis.title = element_text(size = 20),
-          axis.text = element_text(size = 16),
+          axis.text = element_text(size = 12),
+          axis.title = element_text(size = 14),
           plot.margin = margin(t = 0, r = 21, b = 0, l = 0, unit = "pt")
     ) +
     scale_y_continuous(expand = c(0, 0)) +
@@ -2543,9 +2578,7 @@ stackedBar <- function(seu.obj = NULL, downSampleBy = "orig.ident", groupBy = "o
     xlab(label = "Cluster ID") + 
     scale_x_discrete(breaks = unique(cluster_freq.table$ClusterID), expand=c(0,0)) +
     guides(fill = guide_legend(nrow = 1))
-    
     return(p)
-
 }
 
 ############ runMonocle ############
