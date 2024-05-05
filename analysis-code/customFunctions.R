@@ -929,36 +929,41 @@ linDEG <- function(seu.obj = NULL, threshold = 1, thresLine = F, groupBy = "clus
 formatUMAP <- function(plot = NULL, smallAxes = F) {
     
     plot <- plot + labs(x = "UMAP1", y = "UMAP2") +
-    theme(axis.text = element_blank(), 
-          axis.ticks = element_blank(),
-          axis.title = element_text(size= 20),
-          plot.title = element_blank(),
-          title = element_text(size= 20),
-          axis.line = element_blank(),
-          panel.border = element_rect(color = "black",
-                                      fill = NA,
-                                      size = 2)
-          )
+        theme(
+            axis.text = element_blank(), 
+            axis.ticks = element_blank(),
+            axis.title = element_text(size= 20),
+            plot.title = element_blank(),
+            title = element_text(size= 20),
+            axis.line = element_blank(),
+            panel.border = element_rect(color = "black",
+                                        fill = NA,
+                                        size = 2)
+           )
     
     if(smallAxes){
-       
-        axes <- ggplot() + labs(x = "UMAP1", y = "UMAP2") + 
+        axes <- ggplot(data.frame()) + labs(x = "UMAP1", y = "UMAP2") +
+        scale_y_continuous(expand = c(0, 0), limits = c(0, 100)) + 
+        scale_x_continuous(expand = c(0, 0), limits = c(0, 100)) + 
+        theme_classic() + 
         theme(axis.line = element_line(colour = "black", 
                                        arrow = arrow(angle = 30, length = unit(0.1, "inches"),
                                                      ends = "last", type = "closed"),
+                                       size = 1.5
                                       ),
-              axis.title.y = element_text(colour = "black", size = 20),
-              axis.title.x = element_text(colour = "black", size = 20),
+              axis.title = element_text(colour = "black", size = 16),
+              axis.ticks = element_blank(),
+              axis.text = element_blank(), 
               panel.border = element_blank(),
-              panel.background = element_rect(fill = "transparent",colour = NA),
-              plot.background = element_rect(fill = "transparent",colour = NA),
+              panel.background = element_rect(fill = "transparent", colour = NA),
+              plot.background = element_rect(fill = "transparent", colour = NA),
               panel.grid.major = element_blank(), 
               panel.grid.minor = element_blank()
-             )
+             ) + coord_cartesian(expand = FALSE, xlim = c(0, NA), ylim = c(0, NA))
         
         plot <- plot + theme(axis.title = element_blank(),
                              panel.border = element_blank(),
-                             plot.margin = unit(c(-7, -7, -7, -7), "pt")
+                             plot.margin = unit(c(-7, -7, 14, 14), "pt")
                             )
 
         plot <- plot + inset_element(axes,left= 0,
@@ -1421,7 +1426,7 @@ pseudoDEG <- function(
     stblCol = "grey",
     upCol = "red",
     labSize = 3,
-    strict_lfc = T
+    strict_lfc = T,
     featuresToExclude = NULL
     ){
     if(fromFile){
@@ -1938,7 +1943,7 @@ singleR <- function(seu.obj = NULL, outName = "", clusters = "clusterID", outDir
 
 cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID", legLabel = NULL, groupLabel = NULL, colorz = NULL, dotSize = 8,
                    groupBy = "", sortBy = "", labCol = "", headerSize = 6, #add if len labCol == 1 then add col to the df
-                   cellHeader = T, bump = 2, nudge_left = 0, nudge_right = 0, topBuffer = 1.05, ymin = 0, compress_y = 0, compress_x = 0.75, titleOrder = NULL, spaceBtwnCols = NULL, breakGroups = F, horizontalWrap = F, returnData = F, overrideData = NULL
+                   cellHeader = T, bump = 2, nudge_left = 0, nudge_right = 0, topBuffer = 1.05, ymin = 0, compress_y = 0, compress_x = 0.75, titleOrder = NULL, spaceBtwnCols = NULL, breakGroups = F, horizontalWrap = F, returnData = F, overrideData = NULL, textSize = 4
                      ){
     
     if(is.null(colorz)){
@@ -2062,7 +2067,7 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
                     fill=legend[[colorz]],
                     stroke=1,
                     colour="black") +
-          geom_text(data = legend, size = 4, mapping = aes(x = leg_x, y = leg_y), label = legend[[clusLabel]], colour = legend[[labCol]]) +
+          geom_text(data = legend, size = textSize, mapping = aes(x = leg_x, y = leg_y), label = legend[[clusLabel]], colour = legend[[labCol]]) +
           geom_text(data = legend, size = 6, mapping = aes(x = leg_x+0.05, y = leg_y), label = legend[[legLabel]], hjust = 0) + #NoLegend() + 
           geom_text(data = header, size = headerSize, mapping = aes(x = header_x-0.03, y = header_y), label = header[[groupLabel]], hjust = 0, fontface =2) +
       theme(axis.text = element_blank(), 
@@ -2089,10 +2094,16 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
     
 ############ majorDot ############
 
-majorDot <- function(seu.obj = NULL, groupBy = "",
-                     yAxis = NULL, scale = T,
-                     features = "", split.by = NULL, cols = c("lightgrey", "blue"), cluster.idents = F
-                    ){
+majorDot <- function(
+    seu.obj = NULL, 
+    groupBy = "",
+    yAxis = NULL, 
+    scale = T,
+    features = "", 
+    split.by = NULL,
+    cols = c("lightgrey", "blue"),
+    cluster.idents = F
+    ){
     
     t <- try(head(seu.obj@assays$RNA@scale.data),silent = T)
 
@@ -2650,8 +2661,13 @@ prettyVolc <- function(
     rightCol = "red", 
     leftCol = "blue", 
     arrowz = T,
-    lfcCut = 0.58
+    lfcCut = 0.58,
+    y = NULL
                     ){
+    
+    if(is.null(y)){
+        y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06
+    }    
     
     p <- plot + scale_x_symmetric(mid = 0) + theme(legend.position = c(0.10, 0.9),
                                                       legend.background = element_blank(),
@@ -2666,33 +2682,34 @@ prettyVolc <- function(
                                                       plot.title = element_blank()
                                                      ) + 
     {if(arrowz){
+        
         annotate("segment", x = lfcCut*1.25, 
-                 y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
+                 y = y * 1.06, 
                  xend = c(max(abs(plot$data$log2FoldChange)),-max(abs(plot$data$log2FoldChange)))[1], 
-                 yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
+                 yend = y * 1.06, 
                  lineend = "round", linejoin = "bevel", linetype ="solid", colour = rightCol,
                  size = 1, arrow = arrow(length = unit(0.1, "inches"))
                 ) 
         }} +
-    {if(arrowz){
+     {if(arrowz){
         annotate("segment", x = -lfcCut*1.25, 
-                 y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
+                 y = y * 1.06, 
                  xend = c(max(abs(plot$data$log2FoldChange)),-max(abs(plot$data$log2FoldChange)))[2],
-                 yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
+                 yend = y * 1.06, 
                  lineend = "round", linejoin = "bevel", linetype ="solid", colour = leftCol,
                  size = 1, arrow = arrow(length = unit(0.1, "inches"))
                 )
         }} + 
     {if(!is.null(rightLab)){
         annotate(geom = "text", x = (max(abs(plot$data$log2FoldChange))-lfcCut*1.25)/2+lfcCut*1.25, 
-                 y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.09,
+                 y = y * 1.10,
                  label = rightLab,
                  hjust = 0.5,
                  size = 5)
         }} + 
     {if(!is.null(leftLab)){
         annotate(geom = "text", x = -(max(abs(plot$data$log2FoldChange))-lfcCut*1.25)/2-lfcCut*1.25, 
-                 y = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.09,
+                 y = y * 1.10,
                  label = leftLab,
                  hjust = 0.5,
                  size = 5)
@@ -2720,7 +2737,8 @@ plotGSEA <- function(
     upOnly = F, 
     trimTerm = T, 
     size = 4,
-    trunkTerm = F
+    trunkTerm = F,
+    lolli = F
     ){
     
     if(!is.null(pwdTOgeneList)){
@@ -2777,6 +2795,8 @@ plotGSEA <- function(
         enriched$Description <- gsub("ANTIGEN_PROCESSING_&_", "", enriched$Description)
         enriched$Description <- gsub("ADAPTIVE_IMMUNE_RESPONSE_BASED_ON_SOMATIC_RECOMBINATION_OF_IMMUNE_RECEPTORS_BUILT_FROM_IMMUNOGLOBULIN_SUPERFAMILY_DOMAINS", "ADAPTIVE_IMMUNE_RESPONSE_BASED_ON_SOMATIC_RECOMBINATION", enriched$Description)
         enriched$Description <- gsub("PROTON_TRANSPORTING_ATP_SYNTHASE_ACTIVITY_ROTATIONAL_MECHANISM", "PROTON_TRANSPORTING_ATP_SYNTHASE_ACTIVITY", enriched$Description)
+        enriched$Description <- gsub("REGULATION_OF_TRANSCRIPTION_FROM_RNA_POLYMERASE_II_PROMOTER_IN_RESPONSE_TO_HYPOXIA", "REGULATION_OF_TRANSCRIPTION_IN_RESPONSE_TO_HYPOXIA", enriched$Description)
+        enriched$Description <- gsub("OXIDOREDUCTASE_ACTIVITY_ACTING_ON_THE_CH_CH_GROUP_OF_DONORS_NAD_OR_NADP_AS_ACCEPTOR", "OXIDOREDUCTASE_ACTIVITY_ACTING_ON_THE_CH_CH_GROUP", enriched$Description)
         if(trunkTerm){
             enriched$Description <- unlist(lapply(enriched$Description, str_trunc, width = 50, side = "right", ellipsis = "*")) ### TO DO: this causes problems if trunc results in the same string -- need to ensure that is handled before adding this back in
         }
@@ -2784,19 +2804,40 @@ plotGSEA <- function(
     
     #remove NAs and then plot
     enriched <- na.omit(enriched)
-    p <- ggplot(data=enriched, aes(x=x_axis, y=Description, fill = direction)) +
-    geom_bar(stat="identity") +  theme_classic() + scale_y_discrete(limits=rev(enriched$Description)
-                                                                   ) + 
-    geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), hjust = ifelse(enriched$x_axis > 0, 1,0), size = size) + 
-    theme(axis.ticks.y = element_blank(),
-          axis.text.y = element_blank(),
-          axis.title.y = element_blank(),
-          axis.line.y = element_blank(),
-          legend.justification = "top"
-         ) + coord_cartesian(clip = "off") + scale_x_symmetric(mid = 0, name = "Signed log10(padj)") + NoLegend() + scale_fill_manual(values = c(upCol,dwnCol))
-    
-    return(p)
+    enriched$Count <- as.numeric(enriched$Count)
+    if(!lolli){
+        p <- ggplot(data=enriched, aes(x=x_axis, y=Description, fill = direction)) +
+        geom_bar(stat="identity") +  theme_classic() + scale_y_discrete(limits=rev(enriched$Description)
+                                                                       ) + 
+        geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), hjust = ifelse(enriched$x_axis > 0, 1,0), size = size) + 
+        theme(axis.ticks.y = element_blank(),
+              axis.text.y = element_blank(),
+              axis.title.y = element_blank(),
+              axis.line.y = element_blank(),
+              legend.justification = "top"
+             ) + coord_cartesian(clip = "off") + scale_x_symmetric(mid = 0, name = "Signed log10(padj)") + NoLegend() + scale_fill_manual(values = c(upCol,dwnCol))
+        } else{
+            p <- ggplot(data = enriched, aes(x = x_axis, y = Description, colour = direction, size = Count)) +
+                geom_segment(aes(x = 0, xend = x_axis, y = Description, yend = Description), color = "black", size = 1) +
+                geom_point() +
+                theme_classic() +
+                geom_vline(xintercept = 0) + 
+                scale_y_discrete(limits = rev(enriched$Description)) +
+                geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), 
+                          hjust = ifelse(enriched$x_axis > 0, 1,0), size = size, color = "black") + 
+                theme(axis.ticks.y = element_blank(),
+                      axis.text.y = element_blank(),
+                      axis.title.y = element_blank(),
+                      axis.line.y = element_blank(),
+                      legend.justification = "top"
+                     ) +
+                coord_cartesian(clip = "off") + 
+                scale_x_symmetric(mid = 0, name = "Signed log10(padj)") + 
+                scale_size_continuous(limits = c(1, max(enriched$Count))) +
+                scale_colour_manual(values = c(upCol, dwnCol), guide = "none")
+    }
 
+    return(p)
     
 }
 
@@ -3274,3 +3315,252 @@ netVisual_aggregate_mod <- function(object, signaling, signaling.name = NULL, co
   return(gg)
 
 }
+
+
+
+############ daOR ############
+#' Use odds ratio to evalute differential abundance at the cluster level
+#'
+#' @param seu.ob Seurat object to plot from
+#' @param groupBy String; Seurat metadata slot to group rows by (typically clusters)
+#' @param splitBy String; Seurat metadata slot to split columns by (typically cell source or biological replicates)
+#' @param savePlot Logical; If TRUE then a ..png file will be saved in outDir using outName in the name
+#' @param outName String; name to be used for saving. Only used if savePlot = TRUE
+#' @param outDir String; path to save the plot to. Only used if savePlot = TRUE
+#' 
+#' @return A ComplexHeatmap object
+#' @examples 
+#' @export optionally save heatmap as "[outDir][outDir]_OR_heat.png" file
+
+daOR <- function(
+    seu.obj = NULL,
+    groupBy = "",
+    splitBy = "",
+    outName = "",
+    outDir = "",
+    t_map = FALSE,
+    cluster_order = NULL
+    ){
+    
+    freq.df <- table(seu.obj@meta.data[ , groupBy], seu.obj@meta.data[ , splitBy]) %>% melt()
+    colnames(freq.df) <- c("Cluster", "Sample", "Freq")
+
+    or.res <- lapply(unique(freq.df$Cluster), function(cluster){
+        or.res.tp <- lapply(unique(freq.df$Sample), function(sam){
+
+            tl <- freq.df %>% 
+                filter(Cluster == cluster & Sample == sam) %>% 
+                pull(Freq)
+
+            tr <- freq.df %>% 
+                filter(Cluster == cluster & Sample != sam) %>% 
+                pull(Freq) %>% sum()
+
+            bl <- freq.df %>% 
+                filter(Cluster != cluster & Sample == sam) %>% 
+                pull(Freq) %>% sum()
+
+            br <- freq.df %>% 
+                filter(Cluster != cluster & Sample != sam) %>% 
+                pull(Freq) %>% sum()
+
+            mat <- matrix(c(tl, tr,
+                            bl, br),
+                          ncol = 2)
+
+            res.fisher <- fisher.test(mat)
+            res.fisher <- data.frame(
+                "Cluster" = cluster, 
+                "Sample" = sam, 
+                "OR" = unname(res.fisher$estimate), 
+                "Pvalue" = res.fisher$p.value
+            ) %>% mutate(
+                "SE_OR" = sqrt(1/tl + 1/tr + 1/bl + 1/br),
+                "lower_95CI" = exp(log(OR) - 1.96 * SE_OR),
+                "upper_95CI" = exp(log(OR) + 1.96 * SE_OR)
+            )
+
+            return(res.fisher)
+        })
+        or.res.tp <- do.call(rbind, or.res.tp)
+        return(or.res.tp)
+    })
+
+    or.res.df <- as.data.frame(do.call(rbind, or.res))
+
+    or.res.df <- or.res.df %>% 
+        mutate(
+            "logOR" = log(OR),
+            "Padj" = p.adjust(Pvalue),
+            "sig" = case_when(
+                Padj <= 0.01 & abs(logOR) >= log(2) ~ "*",
+                Padj > 0.01 | abs(logOR) < log(2) ~ ""
+            )
+        )  
+    
+    or.res.mat <- or.res.df %>% 
+        select(Cluster, Sample, logOR) %>% 
+        pivot_wider(names_from = Sample, values_from = logOR) %>%
+        as.data.frame() %>%
+        column_to_rownames(var = "Cluster") %>%
+        as.matrix()
+
+    sig.mat <- or.res.df %>% 
+        select(Cluster, Sample, sig) %>% 
+        pivot_wider(names_from = Sample, values_from = sig) %>%
+        as.data.frame() %>%
+        column_to_rownames(var = "Cluster") %>%
+        as.matrix()
+       
+    
+    if(!is.null(cluster_order)){
+        if(length(intersect(levels(or.res.df$Cluster), cluster_order)) == length(cluster_order)){
+            or.res.mat <- or.res.mat[match(cluster_order, rownames(or.res.mat)), ]
+            sig.mat <- sig.mat[match(cluster_order, rownames(sig.mat)), ]
+        } else{
+            message(paste(
+                "One or more of the values in the requested order (specified",
+                "with cluster_order) was not present in the data, so the order",
+                "has not been altered.")
+                   )
+        }
+    }
+    
+    if(t_map){
+        ht <- Heatmap(t(or.res.mat),
+                      name = "logOR",
+                      cluster_rows = F,
+                      col = circlize::colorRamp2(c(-2, 0, 2), c("blue", "white", "red")),
+                      cluster_columns = F,
+                      show_column_names = TRUE,
+                      row_title_side = "left",
+                      column_title_side = "bottom",
+                      column_names_rot = 90,
+                      column_names_gp = gpar(fontsize = 10),
+                      row_names_gp = gpar(fontsize = 10),
+                      column_names_centered = FALSE,
+                      cell_fun = function(j, i, x, y, w, h, fill) {
+                              grid.text(t(sig.mat)[i, j], x, y, gp = gpar(fontsize = 14, col = "grey95"))
+                          }
+                     )
+
+    } else{
+
+        ht <- Heatmap(or.res.mat,
+                      name = "logOR",
+                      cluster_rows = F,
+                      row_title = "Cluster",
+                      col = circlize::colorRamp2(c(-2, 0, 2), c("blue", "white", "red")), #viridis(100),
+                      cluster_columns = F,
+                      column_title = "Sample",
+                      show_column_names = TRUE,
+                      column_title_side = "bottom",
+                      column_names_rot = 90,
+                      column_names_centered = TRUE,
+                      cell_fun = function(j, i, x, y, w, h, fill) {
+                              grid.text(sig.mat[i, j], x, y, gp = gpar(fontsize = 14, col = "grey95"))
+                          }
+                     )
+    }
+
+    return(ht)
+}
+
+
+
+############ splitDot ############
+#' Takes dge results and plots the data in split dotplots
+#'
+#' @param seu.ob Seurat object to plot from
+#' @param groupBy String; Seurat metadata slot to group rows by (typically clusters)
+#' @param splitBy String; Seurat metadata slot to split columns by (typically cell source or biological replicates)
+#' @param namedColz Named list; values are colors and names are levels in "splitBy" metadata slot 
+#' @param geneList_UP String list; list of enriched genes
+#' @param geneList_DWN String list; list of downregulated genes
+#' 
+#' @return A ggplot2 object
+#' @examples 
+#' @export
+
+splitDot <- function(
+    seu.obj = NULL,
+    groupBy = "",
+    splitBy = "",
+    namedColz = NULL,
+    geneList_UP = NULL,
+    geneList_DWN = NULL,
+    geneColz = c("red", "blue")
+    ){
+
+    seu.obj$majorID_sub_split <- factor(paste0(
+        as.character(seu.obj@meta.data[ , groupBy]), 
+        "-_-", as.character(seu.obj@meta.data[ , splitBy])
+    ), levels = paste0(
+        rep(levels(seu.obj@meta.data[ , groupBy]), each = length(levels(seu.obj@meta.data[ , splitBy]))), 
+        "-_-", levels(seu.obj@meta.data[ , splitBy])
+    ))
+
+    p <- DotPlot(seu.obj, assay = "RNA", features = c(geneList_UP, geneList_DWN),
+                     group.by = "majorID_sub_split", scale = T
+                )
+
+    df <- separate(p$data, col = id, into = c(NA, "Cell source"), sep = "-_-", remove = F)
+    
+    labz.df <- as.data.frame(list(
+        "y_pos" = seq(1.5, length(levels(seu.obj$majorID_sub_split)) - 0.5, 
+                      by = length(levels(seu.obj@meta.data[ , splitBy]))),
+        "labz" = levels(seu.obj@meta.data[ , groupBy])
+    ))
+
+    for (i in 1:nrow(labz.df)){
+    p <- p + annotation_custom(
+          grob = textGrob(label = labz.df$labz[i], hjust = 1, gp = gpar(cex = 1.5, fontsize = 9)),
+          ymin = labz.df$y_pos[i],
+          ymax = labz.df$y_pos[i],
+          xmin = -0.6,
+          xmax = -0.6)
+     }
+    
+    ymax <- seq(2.5, length(levels(seu.obj$majorID_sub_split)) + 0.5, by = 4)
+    p <- p + annotate("rect", xmin = 0.5, xmax = length(c(geneList_UP, geneList_DWN)) + 0.5, 
+                      ymin = ymax - 2, 
+                      ymax = ymax, 
+                      alpha = 0.1, fill = "grey50") +
+        theme(
+            axis.line = element_blank(),
+            axis.title = element_blank(),
+            axis.text = element_blank(),
+            axis.ticks = element_blank(),
+            axis.text.x = element_text(angle = 45, vjust = 1, hjust=1,
+                                       colour = c(rep("red", length(geneList_UP)), rep("blue", length(geneList_DWN)))),
+            legend.box = "vertical",
+            plot.margin = margin(7, 7, 7, 150, "pt"),
+            legend.position = "bottom",
+            legend.justification='center',
+            legend.key = element_rect(fill = 'transparent', colour = NA),
+            legend.key.size = unit(1, "line"),
+            legend.background = element_rect(fill = 'transparent', colour = NA),
+            panel.background = element_rect(fill = 'transparent', colour = NA),
+            plot.background = element_rect(fill = "transparent", colour = NA),
+            panel.border = element_rect(color = "black",
+                                        fill = NA,
+                                        size = 1)
+        ) + 
+        scale_colour_viridis(option="magma", name='Average\nexpression', breaks = c(-0.5, 1, 2), 
+                             labels = c("-0.5", "1", "2")) +
+        guides(color = guide_colorbar(title = 'Scaled\nExpression  '),
+               size = guide_legend(override.aes = list(fill = NA, shape = 21),
+                                   label.position = "bottom")) + 
+        geom_tile(data = df, aes(fill = `Cell source`, x = 0), show.legend = T) + 
+        scale_y_discrete(expand = c(0, 0)) +
+        scale_fill_manual(values = namedColz) + 
+        geom_point(aes(size=pct.exp), shape = 21, colour="black", stroke=0.5) +
+        labs(size='Percent\nexpression') +
+        scale_size(range = c(0.5, 8), limits = c(0, 100)) +
+        coord_cartesian(clip = 'off')
+    
+    return(p)
+}
+
+
+
