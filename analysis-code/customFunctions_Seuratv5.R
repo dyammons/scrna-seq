@@ -1800,6 +1800,7 @@ pseudoDEG <- function(
     }
 
     lapply(clusters, function(x) {
+        browser()
         if(fromFile){
             inFile <- paste0(inDir, x,"_pb_matrix.csv")
             pbj <- read.csv(file = inFile, row.names = 1)
@@ -1823,10 +1824,16 @@ pseudoDEG <- function(
             dds <- DESeqDataSetFromMatrix(round(pbj), 
                                           colData = meta,
                                           design = formula(paste0("~ groupID + ",noquote(pairBy))))
+            
+            message("Using the following contrast formula:\n",
+                    formula(paste0("~ groupID + ",noquote(pairBy))))
         }else{
             dds <- DESeqDataSetFromMatrix(round(pbj), 
                                           colData = meta,
                                           design = ~ groupID)
+            
+            message("Using the following contrast formula:\n",
+                    formula(~ groupID))
         }
         if(returnDDS){
             return(dds)
@@ -1886,6 +1893,8 @@ pseudoDEG <- function(
             }
             
             #perform logFoldChange and shrinkage
+            message(paste("The lfc calculation will be based on", contrast[2], 
+                          "versus", contrast[3]))
             res <- results(dds, 
                            contrast = contrast,
                            alpha = padj_cutoff,
@@ -1956,42 +1965,64 @@ pseudoDEG <- function(
                 heat_colors <- brewer.pal(6, "YlOrRd")
 
                 #set threshold and flag data points then plot with ggplot
-                res_table_thres <- res_tbl %>% mutate(threshold = ifelse(padj < padj_cutoff & abs(log2FoldChange) >= lfcCut, 
-                                                ifelse(log2FoldChange > lfcCut ,'Up','Down'),'Stable')
-                                                     )
-                res_table_thres <- res_table_thres[!is.na(res_table_thres$padj),]
-                res_table_thres.sortedByPval = res_table_thres[order(res_table_thres$padj),]
-                res_table_thres.sortedByPval <- res_table_thres.sortedByPval[!grepl(paste(filterTerm, collapse = "|"), res_table_thres.sortedByPval$gene),]
-                top20_up <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Up",] %>%  do(head(., n=topn[1]))
-                top20_down <- res_table_thres.sortedByPval[res_table_thres.sortedByPval$threshold == "Down",] %>%  do(head(., n=topn[2]))
-                res_table_thres <- res_table_thres %>% mutate(label = ifelse(gene %in% top20_up$gene | gene %in% top20_down$gene | gene %in% addLabs, gene, NA)
-                             )
-                cntUp <- nrow(res[which(res$log2FoldChange > lfcCut & res$padj < padj_cutoff),])
-                cntDwn <- nrow(res[which(res$log2FoldChange < -lfcCut & res$padj < padj_cutoff),])
-                outfile <- paste0(outfileBase, x,"_volcano.png")
+                if(!is.null(filterTerm)){
+                    feats_to_hide <- res_tbl$gene[grepl(paste(filterTerm, collapse = "|"), res_tbl$gene)]
+                } else{
+                    feats_to_hide <- ""
+                }
+                
+                # Clean results and add singnifiance tags
+                res_table_thres <- res_tbl %>% 
+                    mutate(
+                        threshold = ifelse(padj < padj_cutoff & abs(log2FoldChange) >= lfcCut, 
+                                           ifelse(log2FoldChange > lfcCut, 'Up', 'Down'), 'Stable')
+                    ) %>%
+                    na.omit() %>%
+                    arrange(padj) %>%
+                    filter(! gene %in% feats_to_hide)
+                
+                # Tag features to label
+                cntUp <- nrow(res_table_thres[res_table_thres$threshold == "Up",])
+                cntDwn <- nrow(res_table_thres[res_table_thres$threshold == "Down",])
+                top20_up <- res_table_thres[res_table_thres$threshold == "Up",] %>% do(head(., n = topn[1]))
+                top20_down <- res_table_thres[res_table_thres$threshold == "Down",] %>%  do(head(., n = topn[2]))
+                res_table_thres <- res_table_thres %>% 
+                    mutate(
+                        label = ifelse(gene %in% c(top20_up$gene, top20_down$gene, addLabs), gene, NA)
+                    )
+
                 if(fromFile){
                     if(is.null(title)){
                         title <- paste0(idents.1_NAME, " vs ",idents.2_NAME, "within", x)
                     }
                 }
-                p <- ggplot(data = res_table_thres,
-                            aes(x = log2FoldChange, 
-                                y = -log10(padj), 
-                                colour = threshold)) +
-                geom_vline(xintercept = c(-lfcCut,lfcCut), lty = 4, col="black", lwd = 0.8) +
-                geom_hline(yintercept = -log10(padj_cutoff), lty = 4, col="black", lwd = 0.8) +
-                geom_point(alpha = 0.4, size = 3.5) +
-                geom_label_repel(max.overlaps = Inf, size=labSize, label = res_table_thres$label, show.legend = FALSE) +
-                labs(x="log2(fold change)",
-                     y="-log10(padj)",
-                     title=title) + 
-                scale_color_manual(values=c("Down" = dwnCol, "Stable" = stblCol,"Up" = upCol), labels=c(paste0("Down (", cntDwn,")"), "Stable", paste0("Up (", cntUp,")"))) +
-                theme_bw() +
-                theme(plot.title = element_text(size = 20, hjust=0.5), 
-                      legend.position = "right", 
-                      legend.title = element_blank()
-                     )
-                ggsave(p, file = outfile)
+
+                p <- ggplot(data = res_table_thres, aes(x = log2FoldChange, y = -log10(padj), colour = threshold)) +
+                    geom_vline(xintercept = c(-lfcCut,lfcCut), lty = 4, col="black", lwd = 0.8) +
+                    geom_hline(yintercept = -log10(padj_cutoff), lty = 4, col="black", lwd = 0.8) +
+                    geom_point(alpha = 0.4, size = 3.5) +
+                    geom_label_repel(max.overlaps = Inf, size = labSize, label = res_table_thres$label, 
+                                     show.legend = FALSE) +
+                    labs(
+                        x = "log2(fold change)",
+                        y = "-log10(padj)",
+                        title = title
+                    ) + 
+                    scale_color_manual(
+                        values = c("Down" = dwnCol, "Stable" = stblCol, "Up" = upCol), 
+                        labels = c("Down" = paste0("Down (", cntDwn, ")"), 
+                                   "Stable" = "Stable", 
+                                   "Up" = paste0("Up (", cntUp, ")"))
+                    ) +
+                    theme_bw() +
+                    theme(
+                        plot.title = element_text(size = 20, hjust = 0.5), 
+                        legend.position = "right", 
+                        legend.title = element_blank()
+                    )
+                
+                ggsave(p, file = paste0(outfileBase, x, "_volcano.png"))
+                
                 if(returnVolc){
                     return(p)
                 }
@@ -3003,7 +3034,7 @@ prettyVolc <- function(
                  xend = c(max(abs(plot$data$log2FoldChange)),-max(abs(plot$data$log2FoldChange)))[1], 
                  yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
                  lineend = "round", linejoin = "bevel", linetype ="solid", colour = rightCol,
-                 size = 1, arrow = arrow(length = unit(0.1, "inches"))
+                 linewidth = 1, arrow = arrow(length = unit(0.1, "inches"))
                 ) 
         }} +
     {if(arrowz){
@@ -3012,7 +3043,7 @@ prettyVolc <- function(
                  xend = c(max(abs(plot$data$log2FoldChange)),-max(abs(plot$data$log2FoldChange)))[2],
                  yend = ggplot_build(plot)$layout$panel_scales_y[[1]]$range$range[2]*1.06, 
                  lineend = "round", linejoin = "bevel", linetype ="solid", colour = leftCol,
-                 size = 1, arrow = arrow(length = unit(0.1, "inches"))
+                 linewidth = 1, arrow = arrow(length = unit(0.1, "inches"))
                 )
         }} + 
     {if(!is.null(rightLab)){
@@ -3381,3 +3412,435 @@ cleanMeta <- function(
     
     return(seu.obj)
 }
+
+############ daOR ############
+#' Use odds ratio to evalute differential abundance at the cluster level
+#'
+#' @param seu.ob Seurat object to plot from
+#' @param groupBy String; Seurat metadata slot to group rows by (typically clusters)
+#' @param splitBy String; Seurat metadata slot to split columns by (typically cell source or biological replicates)
+#' @param t_map Logical; If TRUE then transpose the plot
+#' @param cluster_order List of string; order of clusters to plot
+#' 
+#' @return A ComplexHeatmap object
+#' @examples 
+#' @export optionally save heatmap as "[outDir][outDir]_OR_heat.png" file
+
+daOR <- function(
+    seu.obj = NULL,
+    groupBy = "",
+    splitBy = "",
+    outName = "",
+    outDir = "",
+    t_map = FALSE,
+    cluster_order = NULL
+    ){
+    
+    freq.df <- table(seu.obj@meta.data[ , groupBy], seu.obj@meta.data[ , splitBy]) %>% melt()
+    colnames(freq.df) <- c("Cluster", "Sample", "Freq")
+
+    or.res <- lapply(unique(freq.df$Cluster), function(cluster){
+        or.res.tp <- lapply(unique(freq.df$Sample), function(sam){
+
+            tl <- freq.df %>% 
+                filter(Cluster == cluster & Sample == sam) %>% 
+                pull(Freq)
+
+            tr <- freq.df %>% 
+                filter(Cluster == cluster & Sample != sam) %>% 
+                pull(Freq) %>% sum()
+
+            bl <- freq.df %>% 
+                filter(Cluster != cluster & Sample == sam) %>% 
+                pull(Freq) %>% sum()
+
+            br <- freq.df %>% 
+                filter(Cluster != cluster & Sample != sam) %>% 
+                pull(Freq) %>% sum()
+
+            mat <- matrix(c(tl, tr,
+                            bl, br),
+                          ncol = 2)
+
+            res.fisher <- fisher.test(mat)
+            res.fisher <- data.frame(
+                "Cluster" = cluster, 
+                "Sample" = sam, 
+                "OR" = unname(res.fisher$estimate), 
+                "Pvalue" = res.fisher$p.value
+            ) %>% mutate(
+                "SE_OR" = sqrt(1/tl + 1/tr + 1/bl + 1/br),
+                "lower_95CI" = exp(log(OR) - 1.96 * SE_OR),
+                "upper_95CI" = exp(log(OR) + 1.96 * SE_OR)
+            )
+
+            return(res.fisher)
+        })
+        or.res.tp <- do.call(rbind, or.res.tp)
+        return(or.res.tp)
+    })
+
+    or.res.df <- as.data.frame(do.call(rbind, or.res))
+
+    or.res.df <- or.res.df %>% 
+        mutate(
+            "logOR" = log(OR),
+            "Padj" = p.adjust(Pvalue),
+            "sig" = case_when(
+                Padj <= 0.01 & abs(logOR) >= log(2) ~ "*",
+                Padj > 0.01 | abs(logOR) < log(2) ~ ""
+            )
+        )  
+    
+    or.res.mat <- or.res.df %>% 
+        select(Cluster, Sample, logOR) %>% 
+        pivot_wider(names_from = Sample, values_from = logOR) %>%
+        as.data.frame() %>%
+        column_to_rownames(var = "Cluster") %>%
+        as.matrix()
+
+    sig.mat <- or.res.df %>% 
+        select(Cluster, Sample, sig) %>% 
+        pivot_wider(names_from = Sample, values_from = sig) %>%
+        as.data.frame() %>%
+        column_to_rownames(var = "Cluster") %>%
+        as.matrix()
+       
+    
+    if(!is.null(cluster_order)){
+        if(length(intersect(levels(or.res.df$Cluster), cluster_order)) == length(cluster_order)){
+            or.res.mat <- or.res.mat[match(cluster_order, rownames(or.res.mat)), ]
+            sig.mat <- sig.mat[match(cluster_order, rownames(sig.mat)), ]
+        } else{
+            message(paste(
+                "One or more of the values in the requested order (specified",
+                "with cluster_order) was not present in the data, so the order",
+                "has not been altered.")
+                   )
+        }
+    }
+    
+    if(t_map){
+        ht <- Heatmap(t(or.res.mat),
+                      name = "logOR",
+                      cluster_rows = F,
+                      col = circlize::colorRamp2(c(-2, 0, 2), c("blue", "white", "red")),
+                      cluster_columns = F,
+                      show_column_names = TRUE,
+                      row_title_side = "left",
+                      column_title_side = "bottom",
+                      column_names_rot = 90,
+                      column_names_gp = gpar(fontsize = 10),
+                      row_names_gp = gpar(fontsize = 10),
+                      column_names_centered = FALSE,
+                      cell_fun = function(j, i, x, y, w, h, fill) {
+                              grid.text(t(sig.mat)[i, j], x, y, gp = gpar(fontsize = 14, col = "grey95"))
+                          }
+                     )
+
+    } else{
+
+        ht <- Heatmap(or.res.mat,
+                      name = "logOR",
+                      cluster_rows = F,
+                      col = circlize::colorRamp2(c(-2, 0, 2), c("blue", "white", "red")), #viridis(100),
+                      cluster_columns = F,
+                      show_column_names = TRUE,
+                      column_title_side = "bottom",
+                      column_names_rot = 90,
+                      column_names_centered = TRUE,
+                      cell_fun = function(j, i, x, y, w, h, fill) {
+                              grid.text(sig.mat[i, j], x, y, gp = gpar(fontsize = 14, col = "grey95"))
+                          }
+                     )
+    }
+
+    return(ht)
+}
+
+############ runMilo ############
+#' Wrapper to run miloR
+#'
+#' @param seu.ob Seurat object to plot from
+#' @param da_design Data frame; Columns should include "Sample", "Condition", and optionally "Batch"
+#' @param groupBy String; Seurat metadata slot to group rows by (typically samples)
+#' @param splitBy String; Seurat metadata slot to split columns by (typically cell source or condition)
+#' @param outName String; Name to use when saving the file
+#' @param subName String; Name to use when saving the file. Defaults to outName if not specified
+#' @param blocked Logical; If TRUE then use the "Batch" values in da_design in blocking strategy
+#' 
+#' @return A list containing a plot and the milo object
+#' @examples 
+#' @export saves plots as "../output/[outName]/[subName]_milo.png" and "*_NhoodSize.png"
+
+runMilo <- function(
+    seu.obj = NULL, 
+    da_design = NULL, 
+    groupBy = "",
+    splitBy = "",
+    outName = "",
+    embedding = seu.obj@reductions$umap.integrated.harmony@cell.embeddings,
+    subName = NULL,
+    blocked = FALSE,
+    ...
+    ){
+    
+    if(is.null(subName)){
+        subName <- outName
+    }
+    
+    seu.obj$Sample <- seu.obj@meta.data[ , groupBy]
+    seu.obj$Condition <- seu.obj@meta.data[ , splitBy]
+
+    # Convert from Seurat to sce object
+    sce <- as.SingleCellExperiment(seu.obj)
+    reducedDim(sce, "PCA") <- seu.obj@reductions$pca@cell.embeddings
+    reducedDim(sce, "UMAP") <- embedding
+
+    # Preprocess using miloR to ID neighboorhoods
+    milo.obj <- Milo(sce)
+    milo.obj$Sample <- droplevels(factor(milo.obj$Sample))
+    milo.obj <- buildGraph(milo.obj, k = 30, d = 40)
+    milo.obj <- makeNhoods(milo.obj, prop = 0.2, k = 30, d = 40, refined = TRUE, refinement_scheme = "graph")
+    p <- plotNhoodSizeHist(milo.obj)
+    ggsave(paste0("../output/", outName, "/", outName, "_NhoodSize.png"), width = 7, height = 7)
+    
+    milo.obj <- countCells(milo.obj, meta.data = data.frame(colData(milo.obj)), samples = "Sample")
+
+    # Set up metadata
+    rownames(da_design) <- da_design$Sample
+    da_design <- da_design[colnames(nhoodCounts(milo.obj)), , drop = FALSE]
+
+    # Calc distance between neighborhoods and test for DA
+    milo.obj <- calcNhoodDistance(milo.obj, d = 40)
+    if(blocked){
+        da_results <- testNhoods(milo.obj, design = ~ Batch + Condition, design.df = da_design)
+    } else{
+        da_results <- testNhoods(milo.obj, design = ~ Condition, design.df = da_design)
+    }
+    
+    n_diff <- da_results %>% arrange(SpatialFDR) %>% filter(SpatialFDR < 0.1) %>% nrow()
+    if(n_diff == 0){
+        message(
+            paste(
+                "No differentially abundant Nhoods at alpha = 0.1!",
+                "The lowest spaitally adjusted P value is:", min(da_results$SpatialFDR),
+                "\n Although not reccomended, you can increase alpha to the lowest",
+                "spaitally adjusted P value to get an idea of which regoins of the",
+                "UMAP are trendy."
+            )
+        )
+    }
+
+    # Plot the results (by neighborhood)
+    milo.obj <- buildNhoodGraph(milo.obj)
+    p <- plotNhoodGraphDA(milo.obj, da_results[!is.na(da_results$logFC), ],
+                          subset.nhoods=!is.na(da_results$logFC), ...)
+    ggsave(paste("../output/", outName, "/", outName, "_milo.png", sep = ""), width = 6, height = 6)
+    return(list(p, milo.obj))
+}
+
+
+
+############ splitDot ############
+#' Takes dge results and plots the data in split dotplots
+#'
+#' @param seu.ob Seurat object to plot from
+#' @param groupBy String; Seurat metadata slot to group rows by (typically clusters)
+#' @param splitBy String; Seurat metadata slot to split columns by (typically cell source or biological replicates)
+#' @param namedColz Named list; values are colors and names are levels in "splitBy" metadata slot 
+#' @param geneList_UP String list; list of enriched genes
+#' @param geneList_DWN String list; list of downregulated genes
+#' 
+#' @return A ggplot2 object
+#' @examples 
+#' @export
+
+splitDot <- function(
+    seu.obj = NULL,
+    groupBy = "",
+    splitBy = "",
+    namedColz = NULL,
+    geneList_UP = NULL,
+    geneList_DWN = NULL,
+    geneColz = c("red", "blue")
+    ){
+
+    seu.obj$majorID_sub_split <- factor(paste0(
+        as.character(seu.obj@meta.data[ , groupBy]), 
+        "-_-", as.character(seu.obj@meta.data[ , splitBy])
+    ), levels = paste0(
+        rep(levels(seu.obj@meta.data[ , groupBy]), each = length(levels(seu.obj@meta.data[ , splitBy]))), 
+        "-_-", levels(seu.obj@meta.data[ , splitBy])
+    ))
+
+    p <- DotPlot(seu.obj, assay = "RNA", features = c(geneList_UP, geneList_DWN),
+                     group.by = "majorID_sub_split", scale = T
+                )
+
+    df <- separate(p$data, col = id, into = c(NA, "Cell source"), sep = "-_-", remove = F)
+    
+    labz.df <- as.data.frame(list(
+        "y_pos" = seq(1.5, length(levels(seu.obj$majorID_sub_split)) - 0.5, 
+                      by = length(levels(seu.obj@meta.data[ , splitBy]))),
+        "labz" = levels(seu.obj@meta.data[ , groupBy])
+    ))
+
+    for (i in 1:nrow(labz.df)){
+    p <- p + annotation_custom(
+          grob = textGrob(label = labz.df$labz[i], hjust = 1, gp = gpar(cex = 1.5, fontsize = 9)),
+          ymin = labz.df$y_pos[i],
+          ymax = labz.df$y_pos[i],
+          xmin = -0.6,
+          xmax = -0.6)
+     }
+    
+    ymax <- seq(2.5, length(levels(seu.obj$majorID_sub_split)) + 0.5, by = 4)
+    p <- p + annotate("rect", xmin = 0.5, xmax = length(c(geneList_UP, geneList_DWN)) + 0.5, 
+                      ymin = ymax - 2, 
+                      ymax = ymax, 
+                      alpha = 0.1, fill = "grey50") +
+        theme(
+            axis.line = element_blank(),
+            axis.title = element_blank(),
+            axis.text = element_blank(),
+            axis.ticks = element_blank(),
+            axis.text.x = element_text(angle = 45, vjust = 1, hjust=1,
+                                       colour = c(rep("red", length(geneList_UP)), rep("blue", length(geneList_DWN)))),
+            legend.box = "vertical",
+            plot.margin = margin(7, 7, 7, 150, "pt"),
+            legend.position = "bottom",
+            legend.justification='center',
+            legend.key = element_rect(fill = 'transparent', colour = NA),
+            legend.key.size = unit(1, "line"),
+            legend.background = element_rect(fill = 'transparent', colour = NA),
+            panel.background = element_rect(fill = 'transparent', colour = NA),
+            plot.background = element_rect(fill = "transparent", colour = NA),
+            panel.border = element_rect(color = "black",
+                                        fill = NA,
+                                        size = 1)
+        ) + 
+        scale_colour_viridis(option="magma", name='Average\nexpression', breaks = c(-0.5, 1, 2), 
+                             labels = c("-0.5", "1", "2")) +
+        guides(color = guide_colorbar(title = 'Scaled\nExpression  '),
+               size = guide_legend(override.aes = list(fill = NA, shape = 21),
+                                   label.position = "bottom")) + 
+        geom_tile(data = df, aes(fill = `Cell source`, x = 0), show.legend = T) + 
+        scale_y_discrete(expand = c(0, 0)) +
+        scale_fill_manual(values = namedColz) + 
+        geom_point(aes(size=pct.exp), shape = 21, colour="black", stroke=0.5) +
+        labs(size='Percent\nexpression') +
+        scale_size(range = c(0.5, 8), limits = c(0, 100)) +
+        coord_cartesian(clip = 'off')
+    
+    return(p)
+}
+
+netVisual_aggregate_mod <- function(object, signaling, signaling.name = NULL, color.use = NULL, thresh = 0.05, vertex.receiver = NULL, sources.use = NULL, targets.use = NULL, idents.use = NULL, top = 1, remove.isolate = FALSE,
+                                vertex.weight = 1, vertex.weight.max = NULL, vertex.size.max = NULL,
+                                weight.scale = TRUE, edge.weight.max = NULL, edge.width.max=8,
+                                layout = c("circle","hierarchy","chord","spatial"),
+                                pt.title = 12, title.space = 6, vertex.label.cex = 0.8,
+                                alpha.image = 0.15, point.size = 1.5,
+                                group = NULL,cell.order = NULL,small.gap = 1, big.gap = 10, scale = FALSE, reduce = -1, show.legend = FALSE, legend.pos.x = 20,legend.pos.y = 20,
+                                ...) {
+  layout <- match.arg(layout)
+  if (is.null(vertex.weight)) {
+    vertex.weight <- as.numeric(table(object@idents))
+  }
+  if (is.null(vertex.size.max)) {
+    if (length(unique(vertex.weight)) == 1) {
+      vertex.size.max <- 5
+    } else {
+      vertex.size.max <- 15
+    }
+  }
+  pairLR <- searchPair(signaling = signaling, pairLR.use = object@LR$LRsig, key = "pathway_name", matching.exact = T, pair.only = T)
+
+  if (is.null(signaling.name)) {
+    signaling.name <- signaling
+  }
+  net <- object@net
+
+  pairLR.use.name <- dimnames(net$prob)[[3]]
+  pairLR.name <- intersect(rownames(pairLR), pairLR.use.name)
+  pairLR <- pairLR[pairLR.name, ]
+  prob <- net$prob
+  pval <- net$pval
+
+  prob[pval > thresh] <- 0
+  if (length(pairLR.name) > 1) {
+    pairLR.name.use <- pairLR.name[apply(prob[,,pairLR.name], 3, sum) != 0]
+  } else {
+    pairLR.name.use <- pairLR.name[sum(prob[,,pairLR.name]) != 0]
+  }
+
+
+  if (length(pairLR.name.use) == 0) {
+    stop(paste0('There is no significant communication of ', signaling.name))
+  } else {
+    pairLR <- pairLR[pairLR.name.use,]
+  }
+  nRow <- length(pairLR.name.use)
+
+  prob <- prob[,,pairLR.name.use]
+  pval <- pval[,,pairLR.name.use]
+
+  if (length(dim(prob)) == 2) {
+    prob <- replicate(1, prob, simplify="array")
+    pval <- replicate(1, pval, simplify="array")
+  }
+  # prob <-(prob-min(prob))/(max(prob)-min(prob))
+
+  if (layout == "hierarchy") {
+    prob.sum <- apply(prob, c(1,2), sum)
+    # prob.sum <-(prob.sum-min(prob.sum))/(max(prob.sum)-min(prob.sum))
+    if (is.null(edge.weight.max)) {
+      edge.weight.max = max(prob.sum)
+    }
+    par(mfrow=c(1,2), ps = pt.title)
+    netVisual_hierarchy1(prob.sum, vertex.receiver = vertex.receiver, sources.use = sources.use, targets.use = targets.use, remove.isolate = remove.isolate, top = top, color.use = color.use, vertex.weight = vertex.weight, vertex.weight.max = vertex.weight.max, vertex.size.max = vertex.size.max, weight.scale = weight.scale, edge.weight.max = edge.weight.max, edge.width.max=edge.width.max, title.name = NULL, vertex.label.cex = vertex.label.cex,...)
+    netVisual_hierarchy2(prob.sum, vertex.receiver = setdiff(1:nrow(prob.sum),vertex.receiver), sources.use = sources.use, targets.use = targets.use, remove.isolate = remove.isolate, top = top, color.use = color.use, vertex.weight = vertex.weight, vertex.weight.max = vertex.weight.max, vertex.size.max = vertex.size.max, weight.scale = weight.scale, edge.weight.max = edge.weight.max, edge.width.max=edge.width.max, title.name = NULL, vertex.label.cex = vertex.label.cex,...)
+    graphics::mtext(paste0(signaling.name, " signaling pathway network"), side = 3, outer = TRUE, cex = 1, line = -title.space)
+    # https://www.andrewheiss.com/blog/2016/12/08/save-base-graphics-as-pseudo-objects-in-r/
+    # grid.echo()
+    # gg <-  grid.grab()
+    gg <- recordPlot()
+  } else if (layout == "circle") {
+    prob.sum <- apply(prob, c(1,2), sum)
+    # prob.sum <-(prob.sum-min(prob.sum))/(max(prob.sum)-min(prob.sum))
+    gg <- netVisual_circle(prob.sum, sources.use = sources.use, targets.use = targets.use, idents.use = idents.use, remove.isolate = remove.isolate, top = top, color.use = color.use, vertex.weight = vertex.weight, vertex.weight.max = vertex.weight.max, vertex.size.max = vertex.size.max, weight.scale = weight.scale, edge.weight.max = edge.weight.max, edge.width.max=edge.width.max,title.name = paste0(signaling.name, " signaling pathway network"), vertex.label.cex = vertex.label.cex,...)
+  }  else if (layout == "spatial") {
+    prob.sum <- apply(prob, c(1,2), sum)
+    if (vertex.weight == "incoming"){
+      if (length(slot(object, "netP")$centr) == 0) {
+        stop("Please run `netAnalysis_computeCentrality` to compute the network centrality scores! ")
+      }
+      vertex.weight = object@netP$centr[[signaling]]$indeg
+    }
+    if (vertex.weight == "outgoing"){
+      if (length(slot(object, "netP")$centr) == 0) {
+        stop("Please run `netAnalysis_computeCentrality` to compute the network centrality scores! ")
+      }
+      vertex.weight = object@netP$centr[[signaling]]$outdeg
+    }
+    coordinates <- object@images$coordinates
+    labels <- object@idents
+    gg <- netVisual_spatial(prob.sum, coordinates = coordinates, labels = labels, alpha.image = alpha.image, point.size = point.size, sources.use = sources.use, targets.use = targets.use, idents.use = idents.use, remove.isolate = remove.isolate, top = top, color.use = color.use, vertex.weight = vertex.weight, vertex.weight.max = vertex.weight.max, vertex.size.max = vertex.size.max, weight.scale = weight.scale, edge.weight.max = edge.weight.max, edge.width.max=edge.width.max,title.name = paste0(signaling.name, " signaling pathway network"), vertex.label.cex = vertex.label.cex,...)
+
+  } else if (layout == "chord") {
+    prob.sum <- apply(prob, c(1,2), sum)
+    gg <- netVisual_chord_cell_internal(prob.sum, color.use = color.use, sources.use = sources.use, targets.use = targets.use, remove.isolate = remove.isolate,
+                                        group = group, cell.order = cell.order,
+                                        lab.cex = vertex.label.cex,small.gap = small.gap, big.gap = big.gap,
+                                        scale = scale, reduce = reduce,
+                                        title.name = NULL, show.legend = show.legend, legend.pos.x = legend.pos.x, legend.pos.y= legend.pos.y)
+  }
+
+  return(gg)
+
+}
+
+
+
+
