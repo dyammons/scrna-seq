@@ -524,7 +524,7 @@ integrateData <- function(
 
     #if any sample has less than 30 cells. exlude the sample from downstream analysis
     if(min(table(seu.obj$orig.ident)) < min.cell){
-        exclude <- as.data.frame(table(seu.obj$orig.ident)) %>% filter(Freq < 30) %>% pull(Var1)
+        exclude <- as.data.frame(table(seu.obj$orig.ident)) %>% filter(Freq < min.cell) %>% pull(Var1)
         seu.obj <- subset(seu.obj, invert = T, 
                           subset = orig.ident %in% exclude)
         seu.obj$orig.ident <- factor(seu.obj$orig.ident)
@@ -1118,7 +1118,8 @@ linDEG <- function(
     saveGeneList = F, 
     addLabs = "", 
     labsHide = c("^MT-","^RPL","^ENS","^RPS"), 
-    returnPlots = F
+    returnPlots = F,
+    ...
     ){
     
     #set active.ident
@@ -1142,7 +1143,7 @@ linDEG <- function(
         geneList <- vilnSplitComp(seu.obj = seu.sub, groupBy = groupBy, refVal = comparison, 
                                   outDir = outDir, outName = outName, 
                                   saveOut = F, saveGeneList = saveGeneList, returnGeneList = T, 
-                                  contrast = contrast, pValCutoff = pValCutoff, logfc.threshold = logfc.threshold
+                                  contrast = contrast, pValCutoff = pValCutoff, logfc.threshold = logfc.threshold, ...
                                  ) 
         geneList <- geneList[[1]]
         geneList$gene <- rownames(geneList)
@@ -1463,7 +1464,7 @@ freqPlots <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "orig.iden
 
 ############ vilnSplitComp ############
 
-vilnSplitComp <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "cellSource", outName = "", nPlots = 9, saveOut = T, saveGeneList = F, returnGeneList = F, contrast = NULL, filterOutFeats = c("^MT-","^RPL","^RPS"), logfc.threshold = 0.5, pValCutoff = 0.01,
+vilnSplitComp <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "cellSource", outName = "", nPlots = 9, saveOut = T, saveGeneList = F, returnGeneList = F, contrast = NULL, filterOutFeats = c("^MT-","^RPL","^RPS"), logfc.threshold = 0.5, pValCutoff = 0.01, ...,
                           outDir = "./output/"
                        ) {
     
@@ -1480,7 +1481,7 @@ vilnSplitComp <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "cellS
         
         #use FindMarkers to complete DGE analysis -- default parameters used
         message(paste0("Contrasting - (1) ", comp1," - VS - (2) ", comp2))
-        cluster.markers <- FindMarkers(seu.obj, ident.1 = comp1,  ident.2 = comp2, min.pct = 0, logfc.threshold = logfc.threshold) 
+        cluster.markers <- FindMarkers(seu.obj, ident.1 = comp1,  ident.2 = comp2, min.pct = 0, logfc.threshold = logfc.threshold, ...) 
         message(paste0("Number of DEGs prior to p_val_adj filter:"))
         print(cluster.markers %>% mutate(direction = ifelse(avg_log2FC > 0, "Up", "Down")) %>% group_by(direction) %>% summarize(nRow = n()))
         
@@ -1800,7 +1801,6 @@ pseudoDEG <- function(
     }
 
     lapply(clusters, function(x) {
-        browser()
         if(fromFile){
             inFile <- paste0(inDir, x,"_pb_matrix.csv")
             pbj <- read.csv(file = inFile, row.names = 1)
@@ -3080,9 +3080,11 @@ plotGSEA <- function(
     subcategory = NULL, 
     termsTOplot = 8, 
     upOnly = F, 
+    dwnOnly = F,
     trimTerm = T, 
     size = 4,
-    trunkTerm = F
+    trunkTerm = F,
+    lolli = F
     ){
     
     if(!is.null(pwdTOgeneList)){
@@ -3098,10 +3100,14 @@ plotGSEA <- function(
     can_gene_sets <- as.data.frame(msigdbr(species = species, category = category, subcategory = subcategory))
     msigdbr_list <- split(x = can_gene_sets$gene_symbol, f = can_gene_sets$gs_name)
     datas <- can_gene_sets %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
-    
+
+    if(!dwnOnly){
     enriched_up <- as.data.frame(enricher(gene = geneListUp, TERM2GENE = datas, pvalueCutoff = pvalueCutoff)
                                 ) %>% arrange(p.adjust) %>% mutate(x_axis = -log10(p.adjust),
                                                                    direction = "UP")
+    } else{
+        enriched_up <- data.frame(matrix(ncol = 0, nrow = 0))
+    }
     if(!upOnly){
         enriched_dwn <- as.data.frame(enricher(gene = geneListDwn, 
                                                TERM2GENE = datas, pvalueCutoff = pvalueCutoff)
@@ -3146,105 +3152,171 @@ plotGSEA <- function(
     
     #remove NAs and then plot
     enriched <- na.omit(enriched)
-    p <- ggplot(data=enriched, aes(x=x_axis, y=Description, fill = direction)) +
-    geom_bar(stat="identity") +  theme_classic() + scale_y_discrete(limits=rev(enriched$Description)
-                                                                   ) + 
-    geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), hjust = ifelse(enriched$x_axis > 0, 1,0), size = size) + 
-    theme(axis.ticks.y = element_blank(),
-          axis.text.y = element_blank(),
-          axis.title.y = element_blank(),
-          axis.line.y = element_blank(),
-          legend.justification = "top"
-         ) + coord_cartesian(clip = "off") + scale_x_symmetric(mid = 0, name = "Signed log10(padj)") + NoLegend() + scale_fill_manual(values = c(upCol,dwnCol))
+    enriched$Count <- as.numeric(enriched$Count)
+    if(!lolli){
+        p <- ggplot(data=enriched, aes(x=x_axis, y=Description, fill = direction)) +
+        geom_bar(stat="identity") +  theme_classic() + scale_y_discrete(limits=rev(enriched$Description)
+                                                                       ) + 
+        geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), hjust = ifelse(enriched$x_axis > 0, 1,0), size = size) + 
+        theme(axis.ticks.y = element_blank(),
+              axis.text.y = element_blank(),
+              axis.title.y = element_blank(),
+              axis.line.y = element_blank(),
+              legend.justification = "top"
+             ) + coord_cartesian(clip = "off") + scale_x_symmetric(mid = 0, name = "Signed log10(padj)") + NoLegend() + scale_fill_manual(values = c(upCol,dwnCol))
+        } else{
+            p <- ggplot(data = enriched, aes(x = x_axis, y = Description, colour = direction, size = Count)) +
+                geom_segment(aes(x = 0, xend = x_axis, y = Description, yend = Description), color = "black", size = 1) +
+                geom_point() +
+                theme_classic() +
+                geom_vline(xintercept = 0) + 
+                scale_y_discrete(limits = rev(enriched$Description)) +
+                geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), 
+                          hjust = ifelse(enriched$x_axis > 0, 1,0), size = size, color = "black") + 
+                theme(axis.ticks.y = element_blank(),
+                      axis.text.y = element_blank(),
+                      axis.title.y = element_blank(),
+                      axis.line.y = element_blank(),
+                      legend.justification = "top"
+                     ) +
+                coord_cartesian(clip = "off") + 
+                scale_x_symmetric(mid = 0, name = "Signed log10(padj)") + 
+                scale_size_continuous(limits = c(1, max(enriched$Count))) +
+                scale_colour_manual(values = c(upCol, dwnCol), guide = "none")
+    }
     
     return(p)
 }
 
-############ crossSpeciesDEG ############
+############ crossConditionDEG ############
 ###TO DO: fix intercettion line
-crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1 = "Canine", species2 = "Human", 
-                            nlab = 10, nlab_axis = 2, overlapGenes = overlapGenes, colUp = "red",
-                            colDwn = "blue", cONtrast = c("celltype_1","celltype_2"), seed = 12,
-                            hjustvar = c(1,0.5,0,0.5,1,0,1,0),
-                            vjustvar = c(0.5,1,0.5,0,0,1,1,0),
-                            outDir = "./output/", saveGeneList = F
-                    ){
+crossConditionDEG <- function(
+    DE_res1 = NULL, 
+    DE_res2 = NULL, 
+    DE_name1 = "Canine", 
+    DE_name2 = "Human",
+    seu.obj1 = NULL,
+    seu.obj2 = NULL,
+    nlab = 10, 
+    nlab_axis = 2, 
+    overlapGenes = NULL, 
+    colUp = "red",
+    colDwn = "blue", 
+    contrast = NULL, 
+    seed = 12,
+    hjustvar = c(1,0.5,0,0.5,1,0,1,0),
+    vjustvar = c(0.5,1,0.5,0,0,1,1,0),
+    outDir = "../output/", 
+    saveGeneList = F
+    ){
 
-    geneLists.spec1 <- read.csv(pwdTOspecies1)
-    geneLists.spec2 <- read.csv(pwdTOspecies2)
+    if(!is.null(seu.obj1) & !is.null(seu.obj2)){
+        overlapGenes <- intersect(rownames(seu.obj1), rownames(seu.obj2))
+    } else(
+        overlapGenes <- unique(c(DE_res1$gene, DE_res2$gene))
+    )
     
-    overlapGenes <- intersect(rownames(seu.obj.k9),rownames(seu.obj.hu))
-    # overlapGenes <- intersect(geneLists.hu$gene,geneLists.can$gene)
+    geneLists.spec1 <- DE_res1 %>% 
+        mutate(
+            condition = DE_name1,
+            signed_pVal_spec1 = ifelse(log2FoldChange > 0, -log10(padj), log10(padj))
+        ) %>% 
+        filter(gene %in% overlapGenes)
     
-    geneLists.spec1 <- geneLists.spec1 %>% mutate(species = species1,
-                                                  signed_pVal_spec1 = ifelse(log2FoldChange > 0, -log10(padj), log10(padj))
-                                                 ) %>% filter(gene %in% overlapGenes)# %>% top_n(n = ds, wt = signed_pVal_hu)
+    geneLists.spec2 <- DE_res2 %>% 
+        mutate(
+            condition = DE_name2,
+            signed_pVal_spec2 = ifelse(log2FoldChange > 0, -log10(padj), log10(padj))
+        ) %>% 
+        filter(gene %in% overlapGenes)
     
-    geneLists.spec2 <- geneLists.spec2 %>% mutate(species = species2,
-                                                  signed_pVal_spec2 = ifelse(log2FoldChange > 0, -log10(padj), log10(padj))
-                                                 ) %>% filter(gene %in% overlapGenes)# %>% top_n(n = ds, wt = signed_pVal_can)
-    
-    geneList <- unique(c(geneLists.spec1$gene, geneLists.spec2$gene)) %>% as.data.frame()
+    geneList <- as.data.frame(unique(c(geneLists.spec1$gene, geneLists.spec2$gene)))
     colnames(geneList) <- "gene"
     
-    #add intersect to only plot overlappling genes btwn species -- done above?
-    
-    
-    geneList <- geneList %>% left_join(geneLists.spec1[,c("gene","species","signed_pVal_spec1")], 
-                                       by = "gene") %>% left_join(geneLists.spec2[,c("gene","signed_pVal_spec2")], 
-                                                                  by = "gene") %>% replace(is.na(.), 0) %>% 
-    mutate(species = ifelse(species == "0", species2,species1),
-           species = ifelse(signed_pVal_spec2 != "0" & signed_pVal_spec1 != "0", "Both",species1),
-        sig = ifelse(signed_pVal_spec2*signed_pVal_spec1 == 0,signed_pVal_spec2+signed_pVal_spec1,signed_pVal_spec2*signed_pVal_spec1) ,
-       direction = case_when(signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 > 0 & signed_pVal_spec2 > 0 ~ "up",
-                             signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 < 0 &  signed_pVal_spec2 < 0 ~ "dwn",
-                             signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec1 > 0 ~ "axis1",
-                             signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec2 > 0 ~ "axis2",
-                             signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec1 < 0 ~ "axis3",
-                             signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec2 < 0 ~ "axis4",                             
-                             signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 > 0 & signed_pVal_spec2 < 0 ~ "conflict1",
-                             signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 < 0 & signed_pVal_spec2 > 0 ~ "conflict2",
-                            ),
-       
-       label = ifelse(sig != 0, gene, NA)
-      )  %>% arrange(-abs(sig)) %>% group_by(direction) %>% #arrange(p_val_adj) %>% 
-            mutate(lab=ifelse(row_number() <= nlab
-                              & signed_pVal_spec2*signed_pVal_spec1 != 0 , gene, ifelse(signed_pVal_spec2*signed_pVal_spec1 == 0 & row_number() <= nlab_axis, gene, NA)), 
-                   lab_col=case_when(direction == "up" ~ colUp,
-                                     direction == "dwn" ~ colDwn,
-                                     direction == "axis1" ~ "black",
-                                     direction == "axis2" ~ "black",
-                                     direction == "axis3" ~ "black",
-                                     direction == "axis4" ~ "black",
-                                     direction == "conflict1" ~"hotpink",
-                                     direction == "conflict2" ~"hotpink")
-                  ) 
+    geneList <- geneList %>% 
+        left_join(geneLists.spec1[,c("gene","condition","signed_pVal_spec1")], by = "gene") %>% 
+        left_join(geneLists.spec2[,c("gene","signed_pVal_spec2")], by = "gene") %>% 
+        replace(is.na(.), 0) %>% 
+        mutate(
+            condition = ifelse(condition == "0", DE_name2,DE_name1),
+            condition = ifelse(signed_pVal_spec2 != "0" & signed_pVal_spec1 != "0", "Both",DE_name1),
+            sig = ifelse(
+                signed_pVal_spec2 * signed_pVal_spec1 == 0,
+                signed_pVal_spec2 + signed_pVal_spec1, 
+                signed_pVal_spec2 * signed_pVal_spec1
+            ),
+            direction = case_when(
+                signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 > 0 & signed_pVal_spec2 > 0 ~ "up",
+                signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 < 0 &  signed_pVal_spec2 < 0 ~ "dwn",
+                signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec1 > 0 ~ "axis1",
+                signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec2 > 0 ~ "axis2",
+                signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec1 < 0 ~ "axis3",
+                signed_pVal_spec2*signed_pVal_spec1 == 0 & signed_pVal_spec2 < 0 ~ "axis4",                             
+                signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 > 0 & signed_pVal_spec2 < 0 ~ "conflict1",
+                signed_pVal_spec2*signed_pVal_spec1 != 0 & signed_pVal_spec1 < 0 & signed_pVal_spec2 > 0 ~ "conflict2"
+            ),
+            label = ifelse(sig != 0, gene, NA)
+        ) %>% 
+        arrange(-abs(sig)) %>% 
+        group_by(direction) %>%
+        mutate(
+            lab = ifelse(row_number() <= nlab & signed_pVal_spec2 * signed_pVal_spec1 != 0, 
+                         gene, 
+                         ifelse(signed_pVal_spec2 * signed_pVal_spec1 == 0 & row_number() <= nlab_axis, 
+                                gene, NA
+                               )
+                        ), 
+            lab_col = case_when(
+                direction == "up" ~ colUp,
+                direction == "dwn" ~ colDwn,
+                direction == "axis1" ~ "black",
+                direction == "axis2" ~ "black",
+                direction == "axis3" ~ "black",
+                direction == "axis4" ~ "black",
+                direction == "conflict1" ~"hotpink",
+                direction == "conflict2" ~"hotpink"
+            )
+        ) 
     
     anno.df <- as.data.frame(list(
-        direction = c("axis1","axis2","axis3","axis4","conflict1","conflict2","up","dwn"),
-        xpos = c(Inf,0,-Inf,0,Inf,-Inf,Inf,-Inf),
-        ypos =  c(0,Inf,0,-Inf,-Inf,Inf,Inf,-Inf),
+        direction = c("axis1", "axis2", "axis3", "axis4", "conflict1", "conflict2", "up", "dwn"),
+        xpos = c(Inf, 0, -Inf, 0, Inf, -Inf, Inf, -Inf),
+        ypos =  c(0, Inf, 0, -Inf, -Inf, Inf, Inf, -Inf),
         hjustvar = hjustvar,
         vjustvar = vjustvar,
-        colz = c("black","black","black","black","hotpink","hotpink",colUp,colDwn)
+        colz = c("black", "black", "black", "black", "hotpink", "hotpink", colUp, colDwn)
     ))
 
-    
-    annotationz <- geneList %>% group_by(direction) %>% summarize(cntz = n()) %>% left_join(anno.df, by = "direction")
+    annotationz <- geneList %>% 
+        group_by(direction) %>% 
+        summarize(cntz = n()) %>% 
+        left_join(anno.df, by = "direction")
 
     if(saveGeneList){
-        write.csv(geneList, file = paste0(outDir,species1,"_v_", species2, "_", cONtrast[1],"_",cONtrast[2],".csv"), row.names = F)
+        write.csv(geneList, file = paste0(outDir,DE_name1,"_v_", DE_name2, "_", contrast[1],"_",contrast[2],".csv"), row.names = F)
     }
     
-    p <- ggplot(geneList, aes(x=signed_pVal_spec1,y=signed_pVal_spec2)) + geom_hline(yintercept=0,linetype=2) +
-    geom_vline(xintercept=0,linetype=2) + 
-    geom_point() + 
-    geom_label_repel(max.overlaps = Inf, size=2, label = geneList$lab, color = geneList$lab_col, show.legend = F, seed = seed) + 
-    theme_classic() + scale_x_symmetric(mid = 0) + scale_y_symmetric(mid = 0) + 
-    geom_label(data = annotationz, aes(x = xpos,y = ypos, hjust = hjustvar, vjust = vjustvar, label = cntz), color = annotationz$colz) +
-    labs(x = paste0(species1, " " ,cONtrast[1]," vs ",cONtrast[2]," DE signed log10(p.adj)"), 
-                    y = paste0(species2, " ",cONtrast[1]," vs ",cONtrast[2]," DE signed log10(p.adj)"), title = paste0(species1, " and ", species2," " ,cONtrast[1]," vs ",cONtrast[2])) + coord_cartesian(clip = 'off') + 
-    theme(plot.title = element_text(size = 20))
+    p <- ggplot(geneList, aes(x = signed_pVal_spec1, y = signed_pVal_spec2)) + 
+        geom_hline(yintercept = 0, linetype = 2) +
+        geom_vline(xintercept = 0, linetype = 2) + 
+        geom_point() + 
+        geom_label(data = annotationz, aes(x = xpos,y = ypos, hjust = hjustvar, 
+                                           vjust = vjustvar, label = cntz), 
+                   color = annotationz$colz) +
+        geom_label_repel(max.overlaps = Inf, size = 2, label = geneList$lab, 
+                         color = geneList$lab_col, show.legend = F, seed = seed,
+                         alpha = 0.8
+                        ) + 
+        theme_classic() + 
+        scale_x_symmetric(mid = 0) + 
+        scale_y_symmetric(mid = 0) + 
+        labs(
+            x = paste0(DE_name1, " " ,contrast[1]," vs ",contrast[2]," DE signed log10(p.adj)"), 
+            y = paste0(DE_name2, " ",contrast[1]," vs ",contrast[2]," DE signed log10(p.adj)"), 
+            title = paste0(DE_name1, " and ", DE_name2," " ,contrast[1]," vs ",contrast[2])
+        ) + 
+        coord_cartesian(clip = 'off') + 
+        theme(plot.title = element_text(size = 12, hjust = 0.5))
 
     return(p)
     
@@ -3842,5 +3914,218 @@ netVisual_aggregate_mod <- function(object, signaling, signaling.name = NULL, co
 }
 
 
+
+
+
+
+
+sigDEG_heatmap <- function(
+    seu.obj = NULL,
+    groupBy = "",
+    splitBy = "",
+    dge_res = NULL,
+    lfc_thres = 1,
+    forceCleanPlot = F,
+    cond_colz = NULL,
+    clus_colz = NULL,
+    saveName = "../output/",
+    ht_height = 4000,
+    ht_width = 4000,
+    ...
+    ){
+    
+    contrast <- levels(seu.obj@meta.data[ , splitBy])
+    nClus <- length(levels(seu.obj@meta.data[ , groupBy]))
+    nContrast <- length(contrast)
+
+    seu.obj$type <- factor(paste0(as.character(seu.obj@meta.data[ , groupBy]), "-_-", as.character(seu.obj@meta.data[ , splitBy])),
+                           levels = paste0(rep(levels(seu.obj@meta.data[ , groupBy]), 
+                                               each = nContrast), "-_-", contrast))
+    
+    dge_res$gs_base <- factor(dge_res$gs_base, levels = toupper(levels(seu.obj@meta.data[ , groupBy])))
+    res.df <- dge_res %>% 
+        filter(abs(log2FoldChange) > lfc_thres) %>%
+        mutate(
+            direction = ifelse(log2FoldChange > 0, "Up", "Down")
+        ) %>%
+        arrange(gs_base, direction, padj)
+
+    sig.mat <- matrix(nrow = length(unique(res.df$gene)), 
+                      ncol = length(levels(seu.obj$type)),
+                      dimnames = list(unique(res.df$gene), toupper(levels(seu.obj$type)))
+                     )
+
+    for(i in 1:nrow(sig.mat)){
+        for(j in 1:ncol(sig.mat)){
+            cellType <- strsplit(colnames(sig.mat)[j], "-_-")[[1]][1]
+            condition <- strsplit(colnames(sig.mat)[j], "-_-")[[1]][2]
+            if(cellType %in% res.df[res.df$gene == rownames(sig.mat)[i], ]$gs_base){
+                lfc <- res.df[res.df$gene == rownames(sig.mat)[i] & res.df$gs_base == cellType, ]$log2FoldChange
+                if(lfc > 1 & condition == toupper(contrast[2])){
+                    sig.mat[i, j] <- "*"
+                } else if(lfc < -1 & condition == toupper(contrast[1])){
+                    sig.mat[i, j] <- "*"
+                } else{
+                    sig.mat[i, j] <- ""
+                }
+            } else{
+                sig.mat[i, j] <- ""
+            }
+        }
+    }
+
+    res.df <- res.df[!duplicated(res.df$gene), ]
+
+    #extract metadata and data
+    metadata <- seu.obj@meta.data
+    expression <- as.data.frame(FetchData(seu.obj, vars = res.df$gene, layer = "data"))
+    expression$anno_merge <- seu.obj@meta.data[rownames(expression), ]$type
+
+    #get cell type expression averages - do clus avg expression by sample
+    triMean <- function(x, na.rm = TRUE) {
+      mean(stats::quantile(x, probs = c(0.25, 0.50, 0.50, 0.75), na.rm = na.rm))
+    }
+    
+    tuncMean <- function(x){
+        mean(x, trim = 0.15, na.rm = TRUE)
+    }
+    
+    seuMean <- function(x){
+        mean(expm1(x))
+    }
+
+    clusAvg_expression <- expression %>% 
+        group_by(anno_merge) %>% 
+        summarise(across(where(is.numeric), seuMean)) %>% 
+        as.data.frame()
+    rownames(clusAvg_expression) <- clusAvg_expression$anno_merge
+    clusAvg_expression$anno_merge <- NULL
+
+    #filter matrix for DEGs and scale by row
+    mat_scaled <- t(apply(t(clusAvg_expression), 1, scale))
+    colnames(mat_scaled) <- rownames(clusAvg_expression)
+    mat_scaled <- mat_scaled[ , match(colnames(sig.mat), toupper(colnames(mat_scaled)))]
+    mat_scaled <- mat_scaled[match(rownames(sig.mat), rownames(mat_scaled)), ]  
+
+    #avoid confusing plotting
+    if(forceCleanPlot){
+        df1 <- as.data.frame(mat_scaled) %>%
+            rownames_to_column() %>%
+            pivot_longer(cols = colnames(.)[2:ncol(.)]) %>%
+            mutate(
+                join_name = toupper(paste0(rowname, "_", name))
+            )
+        
+        df2 <- as.data.frame(sig.mat) %>%
+            rownames_to_column() %>%
+            pivot_longer(cols = colnames(.)[2:ncol(.)]) %>%
+            mutate(
+                join_name = paste0(rowname, "_", name)
+            ) %>% 
+            left_join(df1[ , c("join_name", "value")], by = "join_name") %>%
+            separate(name, sep = "-_-", remove = T, into = c("name2", "condition")) %>%
+            select(-join_name) %>%
+            pivot_wider(names_from = condition, values_from = c(value.x, value.y)) %>%
+            mutate(
+                sig = case_when(
+                    value.x_PRE == "*" & value.y_PRE > value.y_POST ~ "down",
+                    value.x_POST == "*" & value.y_PRE < value.y_POST ~ "up",
+                    .default = ""
+                )
+            ) %>% select(rowname, name2, sig)
+        
+        for(i in 1:nrow(sig.mat)){
+            for(j in 1:ncol(sig.mat)){
+                cellType <- strsplit(colnames(sig.mat)[j], "-_-")[[1]][1]
+                condition <- strsplit(colnames(sig.mat)[j], "-_-")[[1]][2]
+                gene <- rownames(sig.mat)[i]
+                
+                #if DE detected but means disagree remove sig star
+                if(sig.mat[i, j] == "*"){
+                    testVal <- df2[df2$rowname == gene & df2$name2 == cellType, ]$sig
+                    if(testVal == ""){
+                        sig.mat[i, j] <- ""
+                    } 
+                }
+            }
+        }
+
+        genesToExclude <- rownames(sig.mat)[rowSums(sig.mat == "*") == 0]
+        mat_scaled <- mat_scaled[!rownames(mat_scaled) %in% genesToExclude, ]
+        sig.mat <- sig.mat[!rownames(sig.mat) %in% genesToExclude, ]
+        
+    }
+    
+    #set annotations
+    ha <- HeatmapAnnotation(
+        Cluster = factor(paste0("(c", rep(((1:nClus) - 1), each = nContrast), ") ", 
+                                unlist(lapply(colnames(mat_scaled), function(x){strsplit(x,"-_-")[[1]][1]}))),
+                         levels = paste0("(c", ((1:nClus) - 1), ") ", levels(seu.obj@meta.data[ , groupBy]))),
+        Condition = unlist(lapply(colnames(mat_scaled), function(x){strsplit(x, "-_-")[[1]][2]})),
+        border = TRUE,
+        col = list(Cluster = clus_colz, Condition = cond_colz),
+        annotation_legend_param = list(
+            Cluster = list(direction = "horizontal", nrow = 3),
+            Condition = list(direction = "vertical", nrow = 2)
+        ),
+        show_annotation_name = FALSE,
+        show_legend = FALSE
+    )
+
+    lgd1 <- Legend(labels = paste0("(c", ((1:nClus) - 1), ") ", levels(seu.obj@meta.data[ , groupBy])),
+                   legend_gp = gpar(fill = clus_colz), 
+                   title = "Cluster", 
+                   direction = "vertical",
+                   nrow = 3, 
+                   gap = unit(0.6, "cm")
+                  )
+
+    lgd2 <- Legend(labels = names(cond_colz),
+                   legend_gp = gpar(fill = cond_colz), 
+                   title = "Condition", 
+                   direction = "vertical",
+                   nrow = 2
+                  )
+
+    pd <- packLegend(lgd1, lgd2, max_width = unit(45, "cm"), 
+        direction = "horizontal", column_gap = unit(5, "mm"), row_gap = unit(0.5, "cm"))
+
+    #plot the data
+    ht <- Heatmap(
+        mat_scaled,
+        name = "mat",
+        cluster_rows = F,
+        row_title_gp = gpar(fontsize = 24),
+        show_row_names = T,
+        cluster_columns = F,
+        top_annotation = ha,
+        show_column_names = F,
+        column_split = factor(unlist(lapply(colnames(mat_scaled), function(x){strsplit(x,"-_-")[[1]][1]})),
+                              levels = levels(seu.obj@meta.data[ , groupBy])),
+        row_title = NULL,
+        column_title = NULL,
+        heatmap_legend_param = list(
+            title = "Average expression",
+            direction = "horizontal"
+            ),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+            grid.text(sig.mat[i, j], x, y, gp = gpar(fontsize = 14, col = "black"))
+        },
+        ...
+    )
+
+    png(file = saveName, width = ht_width, height = ht_height, res=400)
+    par(mfcol=c(1,1))   
+    draw(ht, padding = unit(c(2, 2, 2, 2), "mm"), heatmap_legend_side = "bottom", 
+         annotation_legend_list = pd, annotation_legend_side = "top")
+
+    for(i in 1:nClus){
+        decorate_annotation("Cluster", slice = i, {
+            grid.text(paste0("c", (1:nClus) - 1)[i], just = "center")
+        })
+    }
+    dev.off()
+    return(ht)
+}
 
 
