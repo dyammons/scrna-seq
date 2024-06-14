@@ -3889,91 +3889,63 @@ splitDot <- function(
     namedColz = NULL,
     geneList_UP = NULL,
     geneList_DWN = NULL,
-    geneColz = c("red", "blue"),
-    left_margin = 150
+    geneColz = c("red", "blue")
     ){
-    
-    #enusre genes are in the seurat object
-    geneList_UP <- geneList_UP[geneList_UP %in% c(unlist(rownames(seu.obj)))]
-    geneList_DWN <- geneList_DWN[geneList_DWN %in% c(unlist(rownames(seu.obj)))]
-    
-    if(is.null(geneColz) | length(geneColz) == 2){
-        geneColz <- c(rep(geneColz[1], length(geneList_UP)), rep(geneColz[2], length(geneList_DWN)))
-    }
-    
-    seu.obj$majorID_sub_split <- factor(paste0(
-        as.character(seu.obj@meta.data[ , groupBy]), 
-        "-_-", as.character(seu.obj@meta.data[ , splitBy])
-    ), levels = paste0(
-        rep(levels(seu.obj@meta.data[ , groupBy]), each = length(levels(seu.obj@meta.data[ , splitBy]))), 
-        "-_-", levels(seu.obj@meta.data[ , splitBy])
-    ))
+#enusre genes are in the seurat object
+geneList_UP <- geneList_UP[geneList_UP %in% c(unlist(rownames(seu.obj)))]
+geneList_DWN <- geneList_DWN[geneList_DWN %in% c(unlist(rownames(seu.obj)))]
 
-    p <- DotPlot(seu.obj, assay = "RNA", features = c(geneList_UP, geneList_DWN),
-                     group.by = "majorID_sub_split", scale = T
-                )
+if(is.null(geneColz) | length(geneColz) == 2){
+    geneColz <- c(rep(geneColz[1], length(geneList_UP)), rep(geneColz[2], length(geneList_DWN)))
+}
 
-    df <- separate(p$data, col = id, into = c(NA, "Cell source"), sep = "-_-", remove = F)
-    
-    labz.df <- as.data.frame(list(
-        "y_pos" = seq(length(levels(seu.obj@meta.data[ , splitBy])) / 2 + 0.5, 
-                      length(levels(seu.obj$majorID_sub_split)) - 0.5, 
-                      by = length(levels(seu.obj@meta.data[ , splitBy]))),
-        "labz" = levels(seu.obj@meta.data[ , groupBy])
-    ))
-    
-    p$layers[[1]] <- NULL
-    for (i in 1:nrow(labz.df)){
-    p <- p + annotation_custom(
-          grob = textGrob(label = labz.df$labz[i], hjust = 1, gp = gpar(cex = 1.5, fontsize = 9)),
-          ymin = labz.df$y_pos[i],
-          ymax = labz.df$y_pos[i],
-          xmin = -0.6,
-          xmax = -0.6)
-     }
-    
-    ymax <- seq(length(levels(seu.obj@meta.data[ , splitBy])) + 0.5, 
-                length(levels(seu.obj$majorID_sub_split)) + 0.5, 
-                by = length(levels(seu.obj@meta.data[ , splitBy])) * 2)
-    p <- p + annotate("rect", xmin = 0, xmax = length(c(geneList_UP, geneList_DWN)) + 0.5, 
-                      ymin = ymax - length(levels(seu.obj@meta.data[ , splitBy])), 
-                      ymax = ymax, 
-                      alpha = 0.5, fill = "grey70")+ 
-        scale_colour_viridis(
-            option="magma", 
-            name='Average\nexpression', 
-            breaks = c(-0.5, 1, 2),
-            labels = c("-0.5", "1", "2")
-        ) +
-        guides(
-            color = guide_colorbar(title = 'Scaled\nExpression  '),
-            size = guide_legend(override.aes = list(fill = NA, shape = 21), label.position = "bottom")
-        ) + 
-        geom_tile(data = df, aes(fill = `Cell source`, x = 0, width = 0.5), show.legend = T) + 
-        scale_y_discrete(expand = c(0, 0)) +
-        scale_fill_manual(values = namedColz) + 
-        geom_point(aes(size = pct.exp), shape = 21, colour = "black", stroke = 0.5) +
-        labs(size='Percent\nexpression') +
-        scale_size(range = c(0.5, 8), limits = c(0, 100)) +
-        coord_cartesian(clip = 'off') +
-        theme(
-            axis.line = element_blank(),
-            axis.title = element_blank(),
-            axis.text = element_blank(),
-            axis.ticks = element_blank(),
-            axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, colour = geneColz),
-            legend.box = "vertical",
-            legend.direction = "vertical",
-            plot.margin = margin(7, 7, 7, left_margin, "pt"),
-            legend.position = "bottom",
-            legend.justification = 'center',
-            legend.key = element_rect(fill = 'transparent', colour = NA),
-            legend.key.size = unit(1, "line"),
-            legend.background = element_rect(fill = 'transparent', colour = NA),
-            panel.background = element_rect(fill = 'transparent', colour = NA),
-            plot.background = element_rect(fill = "transparent", colour = NA),
-            panel.border = element_rect(color = "black", fill = NA, size = 1)
-        ) 
+seu.obj$majorID_sub_split <- factor(paste0(
+    as.character(seu.obj@meta.data[ , groupBy]), 
+    "-_-", as.character(seu.obj@meta.data[ , splitBy])
+), levels = paste0(
+    rep(levels(seu.obj@meta.data[ , groupBy]), each = length(levels(seu.obj@meta.data[ , splitBy]))), 
+    "-_-", levels(seu.obj@meta.data[ , splitBy])
+))
+
+p <- DotPlot(seu.obj, assay = "RNA", features = c(geneList_UP, geneList_DWN),
+                 group.by = "majorID_sub_split", scale = T
+            )
+
+df <- separate(p$data, col = id, into = c("celltype", "cellSource"), sep = "-_-", remove = F)
+p <- ggplot(df, aes(x = features.plot, y = cellSource, fill = avg.exp.scaled, size = pct.exp)) +
+    geom_point(shape = 21) +
+    facet_grid(celltype ~ ., switch = "y") +
+    scale_fill_viridis(
+        option="magma", 
+        name='Average\nexpression'
+    ) +
+    guides(
+        color = guide_colorbar(title = 'Scaled\nExpression  '),
+        size = guide_legend(override.aes = list(fill = NA, shape = 21), label.position = "bottom")
+    ) + 
+    scale_y_discrete(expand = c(0, 0)) +
+    geom_point(aes(size = pct.exp), shape = 21, colour = "black", stroke = 0.5) +
+    labs(size='Percent\nexpression') +
+    scale_size(range = c(0.5, 8), limits = c(0, 100)) +
+    theme(
+        axis.line = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, colour = geneColz),
+        legend.box = "horizontal",
+        legend.direction = "horizontal",
+        legend.position = "bottom",
+        legend.justification = 'center',
+        legend.key = element_rect(fill = 'transparent', colour = NA),
+        legend.key.size = unit(1, "line"),
+        legend.background = element_rect(fill = 'transparent', colour = NA),
+        panel.background = element_rect(fill = 'transparent', colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        panel.border = element_rect(color = "black", fill = NA, size = 1)
+    ) + ggnewscale::new_scale_fill() +
+    geom_tile(data = df, aes(x = 0, width = 0.5, fill = cellSource)) +
+    scale_fill_manual(values = namedColz)
     
     return(p)
 }
