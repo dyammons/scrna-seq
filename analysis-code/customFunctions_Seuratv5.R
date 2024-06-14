@@ -482,6 +482,7 @@ integrateData <- function(
     read_h5 = FALSE,
     k = 100, 
     min.cell = 30,
+    vars.to.regress = NULL,
     ...
     ) {
     
@@ -522,7 +523,7 @@ integrateData <- function(
         try(seu.obj[['RNA']] <- split(seu.obj[["RNA"]], f = seu.obj$orig.ident), silent = T)
     }
 
-    #if any sample has less than 30 cells. exlude the sample from downstream analysis
+    #if any sample has less than `min.cells` cells. exlude the sample from downstream analysis
     if(min(table(seu.obj$orig.ident)) < min.cell){
         exclude <- as.data.frame(table(seu.obj$orig.ident)) %>% filter(Freq < min.cell) %>% pull(Var1)
         seu.obj <- subset(seu.obj, invert = T, 
@@ -537,13 +538,14 @@ integrateData <- function(
 
     
     if(normalization.method == "LogNormalize"){
-        seu.obj <- seu.obj %>% NormalizeData() %>% FindVariableFeatures() %>% ScaleData() %>% 
-        RunPCA() %>% FindNeighbors(., dims = 1:30, reduction = "pca") %>% 
-        FindClusters(., resolution = 1, cluster.name = "unintegrated_clusters")
+        seu.obj <- seu.obj %>% NormalizeData() %>% FindVariableFeatures() %>% 
+            ScaleData(vars.to.regress = vars.to.regress) %>% 
+            RunPCA() %>% FindNeighbors(., dims = 1:30, reduction = "pca") %>% 
+            FindClusters(., resolution = 1, cluster.name = "unintegrated_clusters")
     } else if(normalization.method == "SCT"){
         seu.obj <- SCTransform(seu.obj)
         seu.obj <- RunPCA(seu.obj) %>% FindNeighbors(., dims = 1:30, reduction = "pca") %>% 
-        FindClusters(., resolution = 1, cluster.name = "unintegrated_clusters")
+            FindClusters(., resolution = 1, cluster.name = "unintegrated_clusters")
     } else{
         message("The normalization.method value is not recognized. The options are 'LogNormalize' or 'SCT'. Please update argument and try again.")
         break()
@@ -1081,9 +1083,12 @@ prettyFeats <- function(
         }
     }
 
-    p <- Reduce( `+`, plots ) +  {if(noLegend & showAxis){asses}} +
-    {if(!noLegend){legg}} + plot_layout(guides = "collect") +
-    {if(!noLegend & bottomLeg){plot_layout(design = patch, heights = c(rep.int(1, nrow),0.2))}else if(!noLegend & !bottomLeg){plot_layout(design = patch, widths = c(rep.int(1, ncol),0.2))}else{plot_layout(design = patch, widths = rep.int(1, ncol))}}
+    p <- Reduce(`+`, plots ) + 
+        {if(noLegend & showAxis){asses}} +
+        {if(!noLegend){legg}} + plot_layout(guides = "collect") +
+        {if(!noLegend & bottomLeg){plot_layout(design = patch, heights = c(rep.int(1, nrow),0.2))}
+         else if(!noLegend & !bottomLeg){plot_layout(design = patch, widths = c(rep.int(1, ncol),0.2))}
+             else{plot_layout(design = patch, widths = rep.int(1, ncol))}}
 
     return(p)
 }
@@ -1284,6 +1289,7 @@ formatUMAP <- function(
         scale_x_continuous(expand = c(0, 0), limits = c(0, 100)) + 
         theme_classic() + 
         theme(axis.line = element_line(colour = "black", 
+                                       lineend = c('round'),
                                        arrow = arrow(angle = 30, length = unit(0.1, "inches"),
                                                      ends = "last", type = "closed"),
                                        linewidth = 1.5
@@ -1373,8 +1379,20 @@ cusLabels <- function(
 
 ############ freqPlots ############
 
-freqPlots <- function(seu.obj = NULL, groupBy = "clusterID", refVal = "orig.ident", comp = "cellSource", colz = NULL, namez = NULL, method = 1, nrow = 3, title = F, legTitle = NULL, no_legend = F, showPval = T
-                       ) {
+freqPlots <- function(
+    seu.obj = NULL, 
+    groupBy = "clusterID", 
+    refVal = "orig.ident",
+    comp = "cellSource",
+    colz = NULL, 
+    namez = NULL,
+    method = 1, 
+    nrow = 3, 
+    title = F, 
+    legTitle = NULL,
+    no_legend = F, 
+    showPval = T
+) {
     
     if(method == 1){
     fq <- prop.table(table(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[,refVal]), 2) *100
@@ -1944,7 +1962,7 @@ pseudoDEG <- function(
                     geom_point(aes(x = gene, 
                                    y = normalized_counts, 
                                    color = groupID), #need to fix samplename & change to groupID
-                               position=position_jitter(w=0.1,h=0)) +
+                               position=position_jitter(w=0.1, h=0)) +
                     scale_y_log10() +
                     xlab("Genes") +
                     ylab("log10 Normalized Counts") +
@@ -2567,10 +2585,10 @@ autoDot <- function(seu.integrated.obj = NULL, inFile = NULL, groupBy = "",
   coord_flip() +
   guides(color = guide_colorbar(title = 'Scaled\nExpression')) +
   scale_y_discrete(expand = c(0, 0)) +
-  geom_point(aes(x = 0, y=id, size = 100), shape = 21, stroke = 0.75) +
-  geom_point(aes(x = as.numeric(length(unique(features$gene)))+1, y=id, size = 100), shape = 21, stroke = 0.75) +
-  geom_text(aes(x = 0, label = id), size = 4.5) +
-  geom_text(aes(x = as.numeric(length(unique(features$gene)))+1, label = id), size = 4.5)
+  geom_point(aes(x = 0, y=id, size = 75), shape = 21, stroke = 0.75) +
+  geom_point(aes(x = as.numeric(length(unique(features$gene)))+1, y=id, size = 75), shape = 21, stroke = 0.75) +
+  geom_text(aes(x = 0, label = id), size = 4) +
+  geom_text(aes(x = as.numeric(length(unique(features$gene)))+1, label = id), size = 4)
     
     return(p)
 }
@@ -3084,7 +3102,8 @@ plotGSEA <- function(
     trimTerm = T, 
     size = 4,
     trunkTerm = F,
-    lolli = F
+    lolli = F,
+    simplify_res = F
     ){
     
     if(!is.null(pwdTOgeneList)){
@@ -3102,17 +3121,31 @@ plotGSEA <- function(
     datas <- can_gene_sets %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
 
     if(!dwnOnly){
-    enriched_up <- as.data.frame(enricher(gene = geneListUp, TERM2GENE = datas, pvalueCutoff = pvalueCutoff)
-                                ) %>% arrange(p.adjust) %>% mutate(x_axis = -log10(p.adjust),
-                                                                   direction = "UP")
+        if(simplify_res){
+            enriched_up <- as.data.frame(
+                simplify(enricher(gene = geneListUp, TERM2GENE = datas, pvalueCutoff = pvalueCutoff))
+            ) %>% arrange(p.adjust) %>% mutate(x_axis = -log10(p.adjust), direction = "UP")
+        } else{
+            enriched_up <- as.data.frame(enricher(gene = geneListUp, TERM2GENE = datas, pvalueCutoff = pvalueCutoff)
+                                        ) %>% arrange(p.adjust) %>% mutate(x_axis = -log10(p.adjust),
+                                                                           direction = "UP")            
+        }
+
     } else{
         enriched_up <- data.frame(matrix(ncol = 0, nrow = 0))
     }
+
     if(!upOnly){
-        enriched_dwn <- as.data.frame(enricher(gene = geneListDwn, 
-                                               TERM2GENE = datas, pvalueCutoff = pvalueCutoff)
-                                     ) %>% arrange(p.adjust) %>% mutate(x_axis = log10(p.adjust),
-                                                                        direction = "DOWN")
+        if(simplify_res){
+            enriched_up <- as.data.frame(
+                simplify(enricher(gene = geneListUp, TERM2GENE = datas, pvalueCutoff = pvalueCutoff))
+            ) %>% arrange(p.adjust) %>% mutate(x_axis = -log10(p.adjust), direction = "DOWN")
+        } else{
+            enriched_dwn <- as.data.frame(enricher(gene = geneListDwn, 
+                                                   TERM2GENE = datas, pvalueCutoff = pvalueCutoff)
+                                         ) %>% arrange(p.adjust) %>% mutate(x_axis = log10(p.adjust),
+                                                                            direction = "DOWN")
+        }
     
         enriched <- rbind(enriched_up[1:ifelse(nrow(enriched_up) > termsTOplot, termsTOplot, length(enriched_up)),], 
                           enriched_dwn[1:ifelse(nrow(enriched_dwn) > termsTOplot, termsTOplot, length(enriched_up)),])
@@ -3155,16 +3188,23 @@ plotGSEA <- function(
     enriched$Count <- as.numeric(enriched$Count)
     if(!lolli){
         p <- ggplot(data=enriched, aes(x=x_axis, y=Description, fill = direction)) +
-        geom_bar(stat="identity") +  theme_classic() + scale_y_discrete(limits=rev(enriched$Description)
-                                                                       ) + 
-        geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), hjust = ifelse(enriched$x_axis > 0, 1,0), size = size) + 
-        theme(axis.ticks.y = element_blank(),
-              axis.text.y = element_blank(),
-              axis.title.y = element_blank(),
-              axis.line.y = element_blank(),
-              legend.justification = "top"
-             ) + coord_cartesian(clip = "off") + scale_x_symmetric(mid = 0, name = "Signed log10(padj)") + NoLegend() + scale_fill_manual(values = c(upCol,dwnCol))
-        } else{
+            geom_bar(stat="identity") +
+            theme_classic() + 
+            scale_y_discrete(limits=rev(enriched$Description)) + 
+            geom_text(aes(x = ifelse(x_axis > 0, -0.05,0.05), label = Description), 
+                      hjust = ifelse(enriched$x_axis > 0, 1,0), size = size) + 
+            theme(
+                axis.ticks.y = element_blank(),
+                axis.text.y = element_blank(),
+                axis.title.y = element_blank(),
+                axis.line.y = element_blank(),
+                legend.justification = "top"
+            ) + 
+            coord_cartesian(clip = "off") + 
+            scale_x_symmetric(mid = 0, name = "Signed log10(padj)") +
+            NoLegend() +
+            scale_fill_manual(values = c(upCol,dwnCol))
+    } else{
             p <- ggplot(data = enriched, aes(x = x_axis, y = Description, colour = direction, size = Count)) +
                 geom_segment(aes(x = 0, xend = x_axis, y = Description, yend = Description), color = "black", size = 1) +
                 geom_point() +
@@ -3324,51 +3364,165 @@ crossConditionDEG <- function(
     
 
 ############ skewPlot ############
-skewPlot <- function(seu.obj = seu.obj
-                    ){
+#' Compare abundances within each cell types between two conditions
+#'
+#' 
+#'
+#' @param seu.obj variable; Seurat object to plot data from.
+#' @param dout string; Path to put figures and processed Seurat objects. Use relative path.
+#' @param outName string; Short name that will be incorporated into the output files.
+#' @param sampleRep string; Valid metadata slot that will be used for statistical replicates.
+#' @param groupBy string; Valid metadata slot that will be used to group the data by. 
+#'    Typically a metadata slot that cooresponds to a cell type
+#' @param grepTerm string; Term to use an ifelse statement to split into groups.
+#' @param grepRes list of 2 strings; Used with grepTerm to set the group names
+#' @param sigTextSpacing numeric; Percentage of max to space between line and text (provide decimal)
+#' @param saveSigRes logical; Used with grepTerm to set the group names
+#'   * `TRUE` (default): saves results of statistical testing in dout as [outName]_skewPlot_stats.csv
+#'   * `FALSE`: does not save the results of statistical testing in .csv
+#'
+#' @return ggplot object of the results
+#' 
+#' @examples
+#' \dontrun{
+#' # Compare abundacnces between groups within each level of "celltype"
+#' p <- skewPlot(seu.obj, groupBy = "celltype")
+#' 
+#' @export [outName]_skewPlot_stats.csv if saveSigRes is TRUE
+
+skewPlot <- function(
+    seu.obj = seu.obj,
+    groupBy = NULL,
+    sampleRep = "orig.ident",
+    grepTerm = "tumor",
+    grepRes = c("TILs","Blood"),
+    omit_ns = TRUE,
+    yAxisLabel = "Percent total",
+    dout = "../output/",
+    sigTextSpacing = 0.025,
+    outName = "",
+    saveSigRes = T
+){
     
-    pct.df <- table(seu.obj$majorID_sub, seu.obj$name) %>% melt() %>% group_by(Var.2) %>% mutate(samN = sum(value))
-    pct.df$Var.1 <- as.factor(pct.df$Var.1)
-    
-    pct.df$pct <- pct.df$value/pct.df$samN*100
-    pct.df$cellSource <- ifelse(grepl("tils",pct.df$Var.2),"TILs","Blood")
+    if(!is.null(groupBy)){
+        
+        #get data
+        pct.df <- table(seu.obj@meta.data[[groupBy]], 
+                        seu.obj@meta.data[[sampleRep]]) %>% melt() %>% group_by(Var.2) %>% mutate(samN = sum(value))
+        
+        #clean data
+        pct.df$Var.1 <- as.factor(pct.df$Var.1)
+        pct.df$pct <- pct.df$value/pct.df$samN*100
+        pct.df$cellSource <- ifelse(grepl(grepTerm, pct.df$Var.2), "grp1", "grp2") 
 
-    statz <- compare_means(pct ~ cellSource, group.by = "Var.1", pct.df)
+        #run stats
+        statz <- compare_means(pct ~ cellSource, group.by = "Var.1", pct.df) %>%
+        select(-p.format, -.y.) %>%
+        mutate(
+            p.signif = symnum(p.adj, cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, Inf),
+                              symbols = c("****", "***", "**", "*", "ns"))
+        )
 
-    status <- pct.df %>% group_by(Var.1,cellSource) %>% summarize(med = median(pct)) %>% spread(cellSource,med) %>% left_join(statz[c("Var.1","p.adj")], by = "Var.1") %>% mutate(lfc = abs(log2(TILs/Blood)),
-    lab_col=case_when(lfc >= 3 & p.adj < 0.05 ~ "Unique",
-                      p.adj < 0.05 & lfc < 3 ~ "Skewed",
-                      p.adj > 0.05 ~ "Common")) %>% select(Var.1,lab_col) %>% as.data.frame()
+        status <- pct.df %>% 
+            group_by(Var.1,cellSource) %>% 
+            summarize(med = median(pct)) %>% 
+            spread(cellSource,med) %>% 
+            left_join(statz[c("Var.1","p.adj")], by = "Var.1") %>%
+            mutate(
+                lfc = abs(log2(grp2/grp1)),
+                lab_col=case_when(lfc >= 3 & p.adj < 0.05 ~ "Unique",
+                                  p.adj < 0.05 & lfc < 3 ~ "Skewed",
+                                  p.adj > 0.05 ~ "Common")) %>% 
+        select(Var.1, lfc, lab_col) %>% 
+        as.data.frame()
 
-    pct.df <- pct.df %>% left_join(status, by = "Var.1")
+        sig.df <- pct.df %>% 
+            group_by(Var.1, cellSource) %>% 
+            summarise(across(
+                .cols = pct, 
+                .fns = list(MEAN = mean, MEDIAN = median, SD = sd,
+                            MIN = min, MAX = max), na.rm = TRUE, 
+                .names = "{col}-{fn}"
+            )) %>%
+            pivot_longer(cols = where(is.double)) %>%
+            mutate(
+                NAME = gsub("\\-.*", "", name),
+                STAT = gsub(".*-", "", name),
+                value = round(value, 2)
+            ) %>%
+            select(-name, -NAME) %>% 
+            pivot_wider(names_from = c(STAT, cellSource), values_from  = value) %>%
+            left_join(statz, by = "Var.1") %>%
+            left_join(status, by = "Var.1") %>%
+            rename(`Cell Type` = Var.1) %>%
+            mutate(
+                contrast = paste0(group1, "_vs_", group2)
+            ) %>%
+            select(-group1, -group2)
+        
+        if(saveSigRes){
+                write.csv(sig.df, file = paste0(dout, "/", outName, "_skewPlot_stats.csv"), 
+                          row.names = F)
+        }
+        sig.df$row_num <- seq_len(nrow(sig.df))
+        sig.df <- sig.df %>%
+            mutate(
+                x_start = row_num - 0.25,
+                x_end = row_num + 0.25,
+                y_pos = max(
+                    sig.df[row_num, c(colnames(sig.df)[grepl("MAX_", colnames(sig.df))])]
+                ) + (max(
+                    sig.df[ , c(colnames(sig.df)[grepl("MAX_", colnames(sig.df))])]
+                ) * 0.02),
+                y_pos_text = y_pos + (max(
+                    sig.df[ , c(colnames(sig.df)[grepl("MAX_", colnames(sig.df))])]
+                ) * sigTextSpacing)
+            )
 
-    pct.df$lab_col <- as.factor(pct.df$lab_col)
-    
-    p <- ggplot(pct.df, aes(x = Var.1, y = pct, fill = lab_col)) +
-    stat_summary(fun = mean, geom = "bar", width = 0.7) +
-    stat_summary(fun.data = mean_se, geom = "errorbar",width = 0) + 
-    scale_y_continuous(limits = c(0, 100), expand = expansion(mult = c(0, 0))) + 
-    labs(x = "Cell type", y = "Percent total") +
-    theme(
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        text = element_text(colour = "black"),
-        plot.title = element_text(face = "bold", hjust = 0.5),
-        axis.line = element_line(colour="black"),
-        axis.ticks = element_line(colour="black"),
-        axis.title = element_text(face = "bold"),
-        axis.title.y = element_text(angle = 90, vjust = 2),
-        axis.title.x = element_blank(),
-        axis.text = element_text(face = "bold"),
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-        plot.background = element_blank()
-  ) + facet_wrap("cellSource", nrow = 2) + scale_fill_manual(labels = c("Common","Skewed","Unique"),
-                                                           values = brewer.pal(n = 3, name = "Dark2"),
-                                                           name = "Uniqueness\nclassification")
-    return(p)
+        sig.df$p.signif <- as.character(sig.df$p.signif)
+        pct.df <- pct.df %>% left_join(status, by = "Var.1")
+
+        pct.df$lab_col <- as.factor(pct.df$lab_col)
+
+        if(omit_ns){
+            sig.df <- filter(sig.df, p.signif != "ns")
+        }
+        
+        p <- ggplot(pct.df, aes(x = Var.1, y = pct)) +
+            geom_boxplot(aes(x = Var.1, fill = cellSource), alpha = 0.25) + 
+            scale_y_continuous(limits = c(0, round(max(pct.df$pct))) * 1.1, expand = expansion(mult = c(0, 0))) + 
+            labs(
+                x = "Cell type", 
+                y = yAxisLabel
+            ) +
+            theme(
+                panel.grid.major = element_blank(),
+                panel.grid.minor = element_blank(),
+                panel.border = element_blank(),
+                panel.background = element_blank(),
+                text = element_text(colour = "black"),
+                plot.title = element_text(face = "bold", hjust = 0.5),
+                axis.line = element_line(colour = "black"),
+                axis.ticks = element_line(colour = "black"),
+                axis.title = element_text(face = "bold"),
+                axis.title.y = element_text(angle = 90, vjust = 2),
+                axis.title.x = element_blank(),
+                axis.text = element_text(face = "bold"),
+                axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+                plot.background = element_blank(),
+                legend.key = element_rect(fill = 'transparent', colour = NA),
+                legend.background = element_rect(fill = 'transparent', colour = NA)
+            ) + 
+            geom_segment(data = sig.df, aes(x = x_start, xend = x_end, y = y_pos, yend = y_pos)) + 
+            geom_text(data = sig.df, aes(x = row_num, y = y_pos_text, label = p.signif)) + 
+            guides(fill = guide_legend(title = 'Cell source'))
+
+        return(p)
+    } else{
+        message("groupBy formal is not specified, please enter the name of a valid metadata slot")
+    }
 }
+    
 
 ############ ExportToCB_cus ############
 
@@ -3735,9 +3889,18 @@ splitDot <- function(
     namedColz = NULL,
     geneList_UP = NULL,
     geneList_DWN = NULL,
-    geneColz = c("red", "blue")
+    geneColz = c("red", "blue"),
+    left_margin = 150
     ){
-
+    
+    #enusre genes are in the seurat object
+    geneList_UP <- geneList_UP[geneList_UP %in% c(unlist(rownames(seu.obj)))]
+    geneList_DWN <- geneList_DWN[geneList_DWN %in% c(unlist(rownames(seu.obj)))]
+    
+    if(is.null(geneColz) | length(geneColz) == 2){
+        geneColz <- c(rep(geneColz[1], length(geneList_UP)), rep(geneColz[2], length(geneList_DWN)))
+    }
+    
     seu.obj$majorID_sub_split <- factor(paste0(
         as.character(seu.obj@meta.data[ , groupBy]), 
         "-_-", as.character(seu.obj@meta.data[ , splitBy])
@@ -3753,11 +3916,13 @@ splitDot <- function(
     df <- separate(p$data, col = id, into = c(NA, "Cell source"), sep = "-_-", remove = F)
     
     labz.df <- as.data.frame(list(
-        "y_pos" = seq(1.5, length(levels(seu.obj$majorID_sub_split)) - 0.5, 
+        "y_pos" = seq(length(levels(seu.obj@meta.data[ , splitBy])) / 2 + 0.5, 
+                      length(levels(seu.obj$majorID_sub_split)) - 0.5, 
                       by = length(levels(seu.obj@meta.data[ , splitBy]))),
         "labz" = levels(seu.obj@meta.data[ , groupBy])
     ))
-
+    
+    p$layers[[1]] <- NULL
     for (i in 1:nrow(labz.df)){
     p <- p + annotation_custom(
           grob = textGrob(label = labz.df$labz[i], hjust = 1, gp = gpar(cex = 1.5, fontsize = 9)),
@@ -3767,43 +3932,48 @@ splitDot <- function(
           xmax = -0.6)
      }
     
-    ymax <- seq(2.5, length(levels(seu.obj$majorID_sub_split)) + 0.5, by = 4)
-    p <- p + annotate("rect", xmin = 0.5, xmax = length(c(geneList_UP, geneList_DWN)) + 0.5, 
-                      ymin = ymax - 2, 
+    ymax <- seq(length(levels(seu.obj@meta.data[ , splitBy])) + 0.5, 
+                length(levels(seu.obj$majorID_sub_split)) + 0.5, 
+                by = length(levels(seu.obj@meta.data[ , splitBy])) * 2)
+    p <- p + annotate("rect", xmin = 0, xmax = length(c(geneList_UP, geneList_DWN)) + 0.5, 
+                      ymin = ymax - length(levels(seu.obj@meta.data[ , splitBy])), 
                       ymax = ymax, 
-                      alpha = 0.1, fill = "grey50") +
+                      alpha = 0.5, fill = "grey70")+ 
+        scale_colour_viridis(
+            option="magma", 
+            name='Average\nexpression', 
+            breaks = c(-0.5, 1, 2),
+            labels = c("-0.5", "1", "2")
+        ) +
+        guides(
+            color = guide_colorbar(title = 'Scaled\nExpression  '),
+            size = guide_legend(override.aes = list(fill = NA, shape = 21), label.position = "bottom")
+        ) + 
+        geom_tile(data = df, aes(fill = `Cell source`, x = 0, width = 0.5), show.legend = T) + 
+        scale_y_discrete(expand = c(0, 0)) +
+        scale_fill_manual(values = namedColz) + 
+        geom_point(aes(size = pct.exp), shape = 21, colour = "black", stroke = 0.5) +
+        labs(size='Percent\nexpression') +
+        scale_size(range = c(0.5, 8), limits = c(0, 100)) +
+        coord_cartesian(clip = 'off') +
         theme(
             axis.line = element_blank(),
             axis.title = element_blank(),
             axis.text = element_blank(),
             axis.ticks = element_blank(),
-            axis.text.x = element_text(angle = 45, vjust = 1, hjust=1,
-                                       colour = c(rep("red", length(geneList_UP)), rep("blue", length(geneList_DWN)))),
+            axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, colour = geneColz),
             legend.box = "vertical",
-            plot.margin = margin(7, 7, 7, 150, "pt"),
+            legend.direction = "vertical",
+            plot.margin = margin(7, 7, 7, left_margin, "pt"),
             legend.position = "bottom",
-            legend.justification='center',
+            legend.justification = 'center',
             legend.key = element_rect(fill = 'transparent', colour = NA),
             legend.key.size = unit(1, "line"),
             legend.background = element_rect(fill = 'transparent', colour = NA),
             panel.background = element_rect(fill = 'transparent', colour = NA),
             plot.background = element_rect(fill = "transparent", colour = NA),
-            panel.border = element_rect(color = "black",
-                                        fill = NA,
-                                        size = 1)
-        ) + 
-        scale_colour_viridis(option="magma", name='Average\nexpression', breaks = c(-0.5, 1, 2), 
-                             labels = c("-0.5", "1", "2")) +
-        guides(color = guide_colorbar(title = 'Scaled\nExpression  '),
-               size = guide_legend(override.aes = list(fill = NA, shape = 21),
-                                   label.position = "bottom")) + 
-        geom_tile(data = df, aes(fill = `Cell source`, x = 0), show.legend = T) + 
-        scale_y_discrete(expand = c(0, 0)) +
-        scale_fill_manual(values = namedColz) + 
-        geom_point(aes(size=pct.exp), shape = 21, colour="black", stroke=0.5) +
-        labs(size='Percent\nexpression') +
-        scale_size(range = c(0.5, 8), limits = c(0, 100)) +
-        coord_cartesian(clip = 'off')
+            panel.border = element_rect(color = "black", fill = NA, size = 1)
+        ) 
     
     return(p)
 }
@@ -4129,3 +4299,236 @@ sigDEG_heatmap <- function(
 }
 
 
+
+############ pairedPerm ############
+#' 
+#'
+#' @param seu.ob Seurat object to plot from
+#' @param cluster String; metadata slot will cell types to complete abundance analysis on (x-axis)
+#' @param groupBy String; Seurat metadata slot to group rows by (typically clusters)
+#' @param pairBy String; Seurat metadata slot indicating replicates
+#' @param log2FC_threshold numeric; log2 fold change value used as significance cut off 
+#' @param p.adj_threshold numeric; P value threshold to evaluate statisitical sigificance
+#' @param nPerm integer; number of preutations to run to generate the null distribution
+#' 
+#' @return A ggplot2 object
+#' @examples 
+#' @export
+
+pairedPerm <- function(
+    seu.obj = NULL,
+    cluster = "majorID_sub",
+    groupBy = "cellSource",
+    pairBy = "cellSource3",
+    log2FC_threshold = 1,
+    p.adj_threshold = 0.01,
+    nPerm = 10000
+    ){
+    
+    sim.prop.res <- lapply(levels(seu.obj@meta.data[ , pairBy]), function(pairedName){
+        message("Running permutation testing for ", pairedName)
+        Idents(seu.obj) <- pairBy
+        seu.obj.sub <- subset(seu.obj, idents = pairedName)
+        seu.obj.sub@meta.data[ , groupBy] <- droplevels(seu.obj.sub@meta.data[ , groupBy])
+
+        metaData <- seu.obj.sub@meta.data %>% dplyr::select(match(c(cluster, groupBy), colnames(.)))
+
+        actual.prop.df <- as.data.frame(
+            prop.table(table(metaData[ , cluster], droplevels(metaData[ , groupBy])), 2) * 100
+        ) %>% pivot_wider(names_from = Var2, values_from = Freq) %>% as.data.frame()
+        colnames(actual.prop.df)[1] <- "cluster"
+        actual.prop.df$log2FC <- log2(actual.prop.df[ ,3]) - log2(actual.prop.df[ ,2])
+        clusToExclude <- actual.prop.df$cluster[is.na(actual.prop.df$log2FC)]
+
+        #if no cells in either condition remove from analysis
+        if (length(clusToExclude) > 0) {
+            actual.prop.df <- na.omit(actual.prop.df)
+            metaData <- metaData[! metaData[[cluster]] %in% clusToExclude, ]
+            metaData[[cluster]] <- droplevels(metaData[[cluster]])
+        }
+        sim.prop <- matrix(NA, nrow(actual.prop.df), nPerm)
+        for (i in 1:nPerm) {
+            sim.data <- metaData
+            sim.data[[groupBy]] <- sample(sim.data[[groupBy]])
+            res <- prop.table(table(sim.data[ , cluster], droplevels(sim.data[ , groupBy])), 2) * 100
+            sim.prop[ , i] <- log2(unname(res[ , 2])) - log2(unname(res[ , 1]))
+        }
+
+        sig.res <- matrix(NA, nrow(actual.prop.df), 1)
+        Pvalue.list <- lapply(1:nrow(actual.prop.df), function(i){
+            if (actual.prop.df$log2FC[i] > 0 ) {
+                Pvalue <- (sum(sim.prop[i, ] >= actual.prop.df$log2FC[i])) / nPerm
+            } else{
+                Pvalue <- (sum(sim.prop[i, ] <= actual.prop.df$log2FC[i])) / nPerm
+            }
+            return(Pvalue)
+        })
+        actual.prop.df <- actual.prop.df %>% 
+            mutate(
+                "p.value" = unlist(Pvalue.list),
+                "p.adj" = p.adjust(p.value),
+                "significance" = factor(
+                    ifelse(log2FC < -log2FC_threshold & p.adj < p.adj_threshold, "Down",
+                           ifelse(log2FC > log2FC_threshold & p.adj < p.adj_threshold, "Up", "n.s.")),
+                    levels = c("Down", "Up", "n.s.")
+                ),
+                "replicate" = pairedName
+            )
+        return(actual.prop.df)
+    })
+
+    res.df <- do.call(rbind, sim.prop.res) 
+    res.df$cluster <- factor(res.df$cluster, levels = levels(seu.obj@meta.data[ , cluster]))
+    res.df$replicate <- factor(res.df$replicate, levels = levels(seu.obj@meta.data[ , pairBy]))
+    
+    return(res.df) 
+#     res.df$cohort <- ifelse(res.df$replicate %in% c("Dog 1", "Dog 2"), "Day 14", "Day 90")
+
+#     p <- ggplot(res.df, aes(x = cluster, y = log2FC, fill = cohort, shape = significance)) + 
+#         theme_classic() + 
+#         geom_hline(yintercept = log2FC_threshold, lty = 2) + 
+#         geom_hline(yintercept = -log2FC_threshold, lty = 2) +
+#         geom_hline(yintercept = 0) + 
+#         geom_point(alpha = 0.8) + 
+#         scale_shape_manual(values = c(25, 24, 21))+
+#         scale_fill_manual(values = c("pink", "purple", "green", "blue")) + 
+#         theme(
+#             axis.title.x = element_blank(),
+#             legend.box = 'horizontal',
+#             legend.position = "top",
+#             plot.margin = margin(c(7,7,21,7)),
+#             legend.key = element_rect(fill = 'transparent', colour = NA),
+#             legend.direction = 'horizontal',
+#             legend.background = element_rect(fill = 'transparent', colour = NA),
+#             panel.background = element_rect(fill = 'transparent', colour = NA),
+#             plot.background = element_rect(fill = "transparent", colour = NA),
+#             axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+#         ) + 
+#         ylab(expression(atop(bold("abundance log2(FC)"), atop(italic("(Post- versus Pre-treatment)"))))) + 
+#         guides(
+#             fill = guide_legend(title = "Cohort:", nrow = 1, override.aes = list(shape = 21)),
+#             shape = guide_legend(title = "Significance:", nrow = 1)
+#         ) +
+#         annotate("rect", xmin = 0, xmax = length(unique(res.df$cluster)) + 1, 
+#                           ymin = -log2FC_threshold, 
+#                           ymax = log2FC_threshold, 
+#                           alpha = 0.1, fill = "grey10")
+#     return(p)
+}
+
+############ pairedPerm ############
+#' 
+#'
+#' @param seu.ob Seurat object to plot from
+#' @param cluster String; metadata slot will cell types to complete abundance analysis on (x-axis)
+#' @param groupBy String; Seurat metadata slot to group rows by (typically clusters)
+#' @param pairBy String; Seurat metadata slot indicating replicates
+#' @param log2FC_threshold numeric; log2 fold change value used as significance cut off 
+#' @param p.adj_threshold numeric; P value threshold to evaluate statisitical sigificance
+#' @param nPerm integer; number of preutations to run to generate the null distribution
+#' 
+#' @return A ggplot2 object
+#' @examples 
+#' @export
+
+permTest <- function(
+    seu.obj = NULL,
+    cluster = "majorID_sub",
+    bioRep = "name2",
+    groupBy = "cellSource",
+    compGrp = "cellSource3",
+    log2FC_threshold = 1,
+    p.adj_threshold = 0.01,
+    nPerm = 10000
+    ){
+    
+    sim.prop.res <- lapply(levels(seu.obj@meta.data[ , compGrp]), function(comp){
+        message("Running permutation testing for ", comp)
+        Idents(seu.obj) <- compGrp
+        seu.obj.sub <- subset(seu.obj, idents = comp)
+        seu.obj.sub@meta.data[ , groupBy] <- droplevels(seu.obj.sub@meta.data[ , groupBy])
+        seu.obj.sub@meta.data[ , bioRep] <- droplevels(seu.obj.sub@meta.data[ , bioRep])
+
+        metaData <- seu.obj.sub@meta.data %>% dplyr::select(match(c(cluster, groupBy, bioRep), colnames(.)))
+
+        actual.prop.df <- as.data.frame(
+            prop.table(table(metaData[ , cluster], droplevels(metaData[ , groupBy])), 2) * 100
+        ) %>% pivot_wider(names_from = Var2, values_from = Freq) %>% as.data.frame()
+        colnames(actual.prop.df)[1] <- "cluster"
+        actual.prop.df$log2FC <- log2(actual.prop.df[ ,3]) - log2(actual.prop.df[ ,2])
+        clusToExclude <- actual.prop.df$cluster[is.na(actual.prop.df$log2FC)]
+
+        #if no cells in either condition remove from analysis
+        if (length(clusToExclude) > 0) {
+            actual.prop.df <- na.omit(actual.prop.df)
+            metaData <- metaData[! metaData[[cluster]] %in% clusToExclude, ]
+            metaData[[cluster]] <- droplevels(metaData[[cluster]])
+        }
+        colnames(metaData) <- c("cluster", "groupBy", "bioRep")
+        sim.prop <- matrix(NA, nrow(actual.prop.df), nPerm)
+        for (i in 1:nPerm) {
+            sim.data <- metaData %>% group_by(bioRep) %>% sample_n(min(table(metaData$bioRep))) %>% as.data.frame()
+            sim.data[["groupBy"]] <- sample(sim.data[["groupBy"]])
+            res <- prop.table(table(sim.data[ , "cluster"], droplevels(sim.data[ , "groupBy"])), 2) * 100
+            sim.prop[ , i] <- log2(unname(res[ , 2])) - log2(unname(res[ , 1]))
+        }
+
+        sig.res <- matrix(NA, nrow(actual.prop.df), 1)
+        Pvalue.list <- lapply(1:nrow(actual.prop.df), function(i){
+            if (actual.prop.df$log2FC[i] > 0 ) {
+                Pvalue <- (sum(sim.prop[i, ] >= actual.prop.df$log2FC[i])) / nPerm
+            } else{
+                Pvalue <- (sum(sim.prop[i, ] <= actual.prop.df$log2FC[i])) / nPerm
+            }
+            return(Pvalue)
+        })
+        actual.prop.df <- actual.prop.df %>% 
+            mutate(
+                "p.value" = unlist(Pvalue.list),
+                "p.adj" = p.adjust(p.value),
+                "significance" = as.factor(
+                    ifelse(log2FC < -log2FC_threshold & p.adj < p.adj_threshold, "Down",
+                           ifelse(log2FC > log2FC_threshold & p.adj < p.adj_threshold, "Up", "n.s."))
+                ),
+                "replicate" = comp
+            )
+        return(actual.prop.df)
+    })
+
+    return(sim.prop.res)
+#     res.df <- do.call(rbind, sim.prop.res) 
+#     res.df$cluster <- factor(res.df$cluster, levels = levels(seu.obj$majorID_sub))
+#     res.df$replicate <- factor(res.df$replicate, levels = levels(seu.obj$cellSource3))
+#     res.df$cohort <- ifelse(res.df$replicate %in% c("Dog 1", "Dog 2"), "Day 14", "Day 90")
+
+#     p <- ggplot(res.df, aes(x = cluster, y = log2FC, fill = cohort, shape = significance)) + 
+#         theme_classic() + 
+#         geom_hline(yintercept = log2FC_threshold, lty = 2) + 
+#         geom_hline(yintercept = -log2FC_threshold, lty = 2) +
+#         geom_hline(yintercept = 0) + 
+#         geom_point(alpha = 0.8) + 
+#         scale_shape_manual(values = c(25, 24, 21))+
+#         scale_fill_manual(values = c("pink", "purple", "green", "blue")) + 
+#         theme(
+#             axis.title.x = element_blank(),
+#             legend.box = 'horizontal',
+#             legend.position = "top",
+#             plot.margin = margin(c(7,7,21,7)),
+#             legend.key = element_rect(fill = 'transparent', colour = NA),
+#             legend.direction = 'horizontal',
+#             legend.background = element_rect(fill = 'transparent', colour = NA),
+#             panel.background = element_rect(fill = 'transparent', colour = NA),
+#             plot.background = element_rect(fill = "transparent", colour = NA),
+#             axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+#         ) + 
+#         ylab(expression(atop(bold("abundance log2(FC)"), atop(italic("(Post- versus Pre-treatment)"))))) + 
+#         guides(
+#             fill = guide_legend(title = "Cohort:", nrow = 1, override.aes = list(shape = 21)),
+#             shape = guide_legend(title = "Significance:", nrow = 1)
+#         ) +
+#         annotate("rect", xmin = 0, xmax = length(unique(res.df$cluster)) + 1, 
+#                           ymin = -log2FC_threshold, 
+#                           ymax = log2FC_threshold, 
+#                           alpha = 0.1, fill = "grey10")
+#     return(p)
+}
