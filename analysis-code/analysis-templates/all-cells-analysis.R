@@ -9,6 +9,7 @@ source("/pl/active/dow_lab/dylan/repos/scrna-seq/analysis-code/customFunctions_S
 
 #set output param
 outName <- ""
+exptName <- ""
 reduction <- "umap.integrated.harmony"
 clusMain <- "clusterID_integrated.harmony"
 contrast <- c("", "") #code will test first vs second
@@ -38,7 +39,7 @@ vilnPlots(seu.obj = seu.obj, groupBy = clusMain, outName = outName,
 
 ### Export data for interactive cell browser
 ExportToCB_cus(seu.obj = seu.obj, dataset.name = outName, outDir = "../output/cb_input/", 
-                markers = paste0("../output/viln/", outName, "/", exptName,"_gene_list.csv"),
+                markers = paste0("../output/viln/", outName, "/", outName, "_", clusMain, "_gene_list.csv"),
                 reduction = reduction,  
                 colsTOkeep = c("orig.ident", "nCount_RNA", "nFeature_RNA", "percent.mt", "Phase", 
                                 "majorID", clusMain, "name", "cellSource"), 

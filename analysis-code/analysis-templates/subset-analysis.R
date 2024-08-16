@@ -33,7 +33,7 @@ clusTree(seu.obj = seu.obj, dout = "../output/clustree/", outName = outName,
 #complete data visualization
 for (x in list("integrated.cca", "integrated.harmony", "integrated.joint", "integrated.rcpa")) {
     seu.obj <- dataVisUMAP(seu.obj = seu.obj, outDir = "../output/s3/", outName = paste0(outName, "_", x), 
-                           final.dims = 30, final.res = 0.6, stashID = "clusterID", algorithm = 3, min.dist = 0.3, n.neighbors = 30,
+                           final.dims = 30, final.res = 0.6, stashID = "clusterID2", algorithm = 3, min.dist = 0.3, n.neighbors = 30,
                            prefix = "RNA_snn_res.", assay = "RNA", reduction = x,
                            saveRDS = F, return_obj = T, returnFeats = T,
                            features = c("PTPRC", "CD3E", "CD8A", "GZMA", 
@@ -41,7 +41,7 @@ for (x in list("integrated.cca", "integrated.harmony", "integrated.joint", "inte
                                         "CD4", "MS4A1", "PPBP","HBM")
                           )
 }
-saveRDS(seu.obj, paste0("../output/s3/", outName,"_S3.rds"))
+saveRDS(seu.obj, paste0("../output/s3/", outName, "_S3.rds"))
 
 ######################################## <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 #######   end preprocessing   ######## <<<<<<<<<<<<<<
@@ -54,15 +54,29 @@ saveRDS(seu.obj, paste0("../output/s3/", outName,"_S3.rds"))
 ########################################## <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 #load in data and metadata
-seu.obj <- readRDS(paste0("../output/s3/", outName,"_S3.rds"))
+seu.obj <- readRDS(paste0("../output/s3/", outName, "_S3.rds"))
 seu.obj <- loadMeta(seu.obj = seu.obj, metaFile = "./metaData/refColz.csv", groupBy = "orig.ident", metaAdd = "name")
 seu.obj <- loadMeta(seu.obj = seu.obj, metaFile = "./metaData/refColz.csv", groupBy = "name", metaAdd = "colz")
 # colArray <- read.csv("./metaData/.csv") #load colors if specified
+
+features <- c("nCount_RNA", "nFeature_RNA", "percent.mt")
+p <- prettyFeats(seu.obj = seu.obj, reduction = reduction, nrow = 1, ncol = 3, features = features, 
+                    color = "black", order = F, pt.size = 0.0000001, title.size = 18, raster = F)
+ggsave(paste0("../output/", outName, "/", outName, "_QC_feats.png"), width = 9, height = 3)
+
 
 #generate viln plots using harmony clusters
 vilnPlots(seu.obj = seu.obj, groupBy = clusMain, outName = outName,
           outDir = paste0("../output/viln/", outName, "/"), returnViln = T 
          )
+
+
+### Generate dot plots using vilnPlots resuts of clusters
+pi <- autoDot(seu.integrated.obj = seu.obj, inFile = paste0("../output/viln/", outName, "/", outName, "_", clusMain, "_gene_list.csv"), groupBy = clusMain,
+                     MIN_LOGFOLD_CHANGE = 0.5, MIN_PCT_CELLS_EXPR_GENE = 0.1,
+                    filterTerm = "ENS"
+                    ) + theme(legend.box = "vertical") 
+ggsave(paste0("../output/", outName, "/", outName, "_autodot.png"), width = 8, height = 12)
 
 ### Export data for interactive cell browser
 ExportToCB_cus(seu.obj = seu.obj, dataset.name = outName, outDir = "../output/cb_input/", 

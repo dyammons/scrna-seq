@@ -133,16 +133,20 @@ load10x <- function(din = NULL, dout = NULL, outName = NULL, testQC = FALSE,
                                           min.features = 200)
         }else{
             
-            #read 10X data
-            indata <- Read10X(pwd)
-            
-            #create seurat object
-            
-            seu_obj <- CreateSeuratObject(counts = indata,
-                                      project = infile,
-                                      min.cells = 3,
-                                      min.features = 200)
+            if(length(list.files(path = pwd, pattern=".h5", all.files=FALSE,full.names=F)) == 0){
+                #read 10X data
+                indata <- Read10X(pwd)
+                seu_obj <- CreateSeuratObject(counts = indata,
+                                          project = infile,
+                                          min.cells = 3,
+                                          min.features = 200)
+            } else{
+                spar.matrix <- Read10X_h5(list.files(path = pwd, pattern=".h5", all.files=FALSE,full.names=T), use.names = TRUE, unique.features = TRUE)
+                seu.obj <- CreateSeuratObject(spar.matrix, project = projName)
+            }
         }
+            
+
 
         #Add mitochondrial QC data to seurat metadata
         seu_obj[["percent.mt"]] <- PercentageFeatureSet(seu_obj, pattern = mt_pattern)
@@ -943,23 +947,24 @@ formatUMAP <- function(plot = NULL, smallAxes = F) {
     
     if(smallAxes){
         axes <- ggplot(data.frame()) + labs(x = "UMAP1", y = "UMAP2") +
-        scale_y_continuous(expand = c(0, 0), limits = c(0, 100)) + 
-        scale_x_continuous(expand = c(0, 0), limits = c(0, 100)) + 
-        theme_classic() + 
-        theme(axis.line = element_line(colour = "black", 
-                                       arrow = arrow(angle = 30, length = unit(0.1, "inches"),
-                                                     ends = "last", type = "closed"),
-                                       size = 1.5
-                                      ),
-              axis.title = element_text(colour = "black", size = 16),
-              axis.ticks = element_blank(),
-              axis.text = element_blank(), 
-              panel.border = element_blank(),
-              panel.background = element_rect(fill = "transparent", colour = NA),
-              plot.background = element_rect(fill = "transparent", colour = NA),
-              panel.grid.major = element_blank(), 
-              panel.grid.minor = element_blank()
-             ) + coord_cartesian(expand = FALSE, xlim = c(0, NA), ylim = c(0, NA))
+            scale_y_continuous(expand = c(0, 0), limits = c(0, 100)) + 
+            scale_x_continuous(expand = c(0, 0), limits = c(0, 100)) + 
+            theme_classic() + 
+            theme(axis.line = element_line(colour = "black", 
+                                           lineend = c('round', 'butt'),
+                                           arrow = arrow(angle = 30, length = unit(0.1, "inches"),
+                                                         ends = "last", type = "closed"),
+                                           size = 1.5
+                                          ),
+                  axis.title = element_text(colour = "black", size = 16),
+                  axis.ticks = element_blank(),
+                  axis.text = element_blank(), 
+                  panel.border = element_blank(),
+                  panel.background = element_rect(fill = "transparent", colour = NA),
+                  plot.background = element_rect(fill = "transparent", colour = NA),
+                  panel.grid.major = element_blank(), 
+                  panel.grid.minor = element_blank()
+                 ) #+ coord_cartesian(expand = TRUE, xlim = c(-1, NA), ylim = c(-1, NA))
         
         plot <- plot + theme(axis.title = element_blank(),
                              panel.border = element_blank(),
@@ -2948,6 +2953,7 @@ crossSpeciesDEG <- function(pwdTOspecies1 = NULL, pwdTOspecies2 = NULL, species1
 #'    Typically a metadata slot that cooresponds to a cell type
 #' @param grepTerm string; Term to use an ifelse statement to split into groups.
 #' @param grepRes list of 2 strings; Used with grepTerm to set the group names
+#' @param sigTextSpacing numeric; Percentage of max to space between line and text (provide decimal)
 #' @param saveSigRes logical; Used with grepTerm to set the group names
 #'   * `TRUE` (default): saves results of statistical testing in dout as [outName]_skewPlot_stats.csv
 #'   * `FALSE`: does not save the results of statistical testing in .csv
@@ -2967,7 +2973,10 @@ skewPlot <- function(
     sampleRep = "orig.ident",
     grepTerm = "tumor",
     grepRes = c("TILs","Blood"),
+    omit_ns = TRUE,
+    yAxisLabel = "Percent total",
     dout = "../output/",
+    sigTextSpacing = 0.025,
     outName = "",
     saveSigRes = T
 ){
@@ -2990,25 +2999,6 @@ skewPlot <- function(
             p.signif = symnum(p.adj, cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, Inf),
                               symbols = c("****", "***", "**", "*", "ns"))
         )
-        
-        if(saveSigRes){
-            sig.df <- pct.df %>% 
-            group_by(
-                Var.1, cellSource
-            ) %>% 
-            summarize(
-                MEAN = mean(pct),
-                MEDIAN = median(pct),
-                SD = sd(pct),
-                MIN = min(pct),
-                MAX = max(pct)
-            ) %>% 
-            left_join(statz, by = "Var.1") %>%
-            rename("cellType" = Var.1) 
-            
-            outFile <- paste0(dout, outName, "_cluster_")
-            write.csv(sig.df, file = paste0(dout, "/", outName, "_skewPlot_stats.csv"))
-        }
 
         status <- pct.df %>% 
             group_by(Var.1,cellSource) %>% 
@@ -3020,37 +3010,90 @@ skewPlot <- function(
                 lab_col=case_when(lfc >= 3 & p.adj < 0.05 ~ "Unique",
                                   p.adj < 0.05 & lfc < 3 ~ "Skewed",
                                   p.adj > 0.05 ~ "Common")) %>% 
-        select(Var.1,lab_col) %>% 
+        select(Var.1, lfc, lab_col) %>% 
         as.data.frame()
 
+        sig.df <- pct.df %>% 
+            group_by(Var.1, cellSource) %>% 
+            summarise(across(
+                .cols = pct, 
+                .fns = list(MEAN = mean, MEDIAN = median, SD = sd,
+                            MIN = min, MAX = max), na.rm = TRUE, 
+                .names = "{col}-{fn}"
+            )) %>%
+            pivot_longer(cols = where(is.double)) %>%
+            mutate(
+                NAME = gsub("\\-.*", "", name),
+                STAT = gsub(".*-", "", name),
+                value = round(value, 2)
+            ) %>%
+            select(-name, -NAME) %>% 
+            pivot_wider(names_from = c(STAT, cellSource), values_from  = value) %>%
+            left_join(statz, by = "Var.1") %>%
+            left_join(status, by = "Var.1") %>%
+            rename(`Cell Type` = Var.1) %>%
+            mutate(
+                contrast = paste0(group1, "_vs_", group2)
+            ) %>%
+            select(-group1, -group2)
+        
+        if(saveSigRes){
+                write.csv(sig.df, file = paste0(dout, "/", outName, "_skewPlot_stats.csv"), 
+                          row.names = F)
+        }
+        sig.df$row_num <- seq_len(nrow(sig.df))
+        sig.df <- sig.df %>%
+            mutate(
+                x_start = row_num - 0.25,
+                x_end = row_num + 0.25,
+                y_pos = max(
+                    sig.df[row_num, c(colnames(sig.df)[grepl("MAX_", colnames(sig.df))])]
+                ) + (max(
+                    sig.df[ , c(colnames(sig.df)[grepl("MAX_", colnames(sig.df))])]
+                ) * 0.02),
+                y_pos_text = y_pos + (max(
+                    sig.df[ , c(colnames(sig.df)[grepl("MAX_", colnames(sig.df))])]
+                ) * sigTextSpacing)
+            )
+
+        sig.df$p.signif <- as.character(sig.df$p.signif)
         pct.df <- pct.df %>% left_join(status, by = "Var.1")
 
         pct.df$lab_col <- as.factor(pct.df$lab_col)
 
-        p <- ggplot(pct.df, aes(x = Var.1, y = pct, fill = lab_col)) +
-        stat_summary(fun = mean, geom = "bar", width = 0.7) +
-        stat_summary(fun.data = mean_se, geom = "errorbar",width = 0) + 
-        scale_y_continuous(limits = c(0, 100), expand = expansion(mult = c(0, 0))) + 
-        labs(x = "Cell type", y = "Percent total") +
-        theme(
-            panel.grid.major = element_blank(),
-            panel.grid.minor = element_blank(),
-            panel.border = element_blank(),
-            panel.background = element_blank(),
-            text = element_text(colour = "black"),
-            plot.title = element_text(face = "bold", hjust = 0.5),
-            axis.line = element_line(colour="black"),
-            axis.ticks = element_line(colour="black"),
-            axis.title = element_text(face = "bold"),
-            axis.title.y = element_text(angle = 90, vjust = 2),
-            axis.title.x = element_blank(),
-            axis.text = element_text(face = "bold"),
-            axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-            plot.background = element_blank()
-        ) + facet_wrap("cellSource", nrow = 2) + 
-        scale_fill_manual(labels = c("Common","Skewed","Unique"),
-                          values = brewer.pal(n = 3, name = "Dark2"),
-                          name = "Uniqueness\nclassification")
+        if(omit_ns){
+            sig.df <- filter(sig.df, p.signif != "ns")
+        }
+        
+        p <- ggplot(pct.df, aes(x = Var.1, y = pct)) +
+            geom_boxplot(aes(x = Var.1, fill = cellSource), alpha = 0.25) + 
+            scale_y_continuous(limits = c(0, round(max(pct.df$pct))) * 1.1, expand = expansion(mult = c(0, 0))) + 
+            labs(
+                x = "Cell type", 
+                y = yAxisLabel
+            ) +
+            theme(
+                panel.grid.major = element_blank(),
+                panel.grid.minor = element_blank(),
+                panel.border = element_blank(),
+                panel.background = element_blank(),
+                text = element_text(colour = "black"),
+                plot.title = element_text(face = "bold", hjust = 0.5),
+                axis.line = element_line(colour = "black"),
+                axis.ticks = element_line(colour = "black"),
+                axis.title = element_text(face = "bold"),
+                axis.title.y = element_text(angle = 90, vjust = 2),
+                axis.title.x = element_blank(),
+                axis.text = element_text(face = "bold"),
+                axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+                plot.background = element_blank(),
+                legend.key = element_rect(fill = 'transparent', colour = NA),
+                legend.background = element_rect(fill = 'transparent', colour = NA)
+            ) + 
+            geom_segment(data = sig.df, aes(x = x_start, xend = x_end, y = y_pos, yend = y_pos)) + 
+            geom_text(data = sig.df, aes(x = row_num, y = y_pos_text, label = p.signif)) + 
+            guides(fill = guide_legend(title = 'Cell source'))
+
         return(p)
     } else{
         message("groupBy formal is not specified, please enter the name of a valid metadata slot")
@@ -3062,6 +3105,7 @@ skewPlot <- function(
 
 #need to update to get barcode in first column
 ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./output/", markers = NULL, reduction = "umap", test = F, skipEXPR=F, colsTOkeep=NULL,
+                           metaSlots = c("cluster","gene","avg_log2FC","p_val_adj"),
                            feats = c("PTPRC", "CD3E", "CD8A", "GZMA", 
                                      "IL7R", "ANPEP", "FLT3", "DLA-DRA", 
                                      "CD4", "MS4A1", "PPBP","HBM")
@@ -3086,7 +3130,7 @@ ExportToCB_cus <- function(seu.obj = seu.obj, dataset.name = "", outDir = "./out
     write.csv(quickGenes, paste0(outDir,"quickGenes.csv"), quote=FALSE, row.names = F)
     
     markers <- read.csv(markers)
-    markers <- markers[c("cluster","gene","avg_log2FC","p_val_adj")]
+    markers <- markers[metaSlots]
     #colnames(markers)[3,4] <- c("avg_diff","p_val")
     write.table(markers,paste0(outDir,"markers.tsv"), quote=FALSE, sep='\t', row.names = F)
     
@@ -3489,7 +3533,8 @@ splitDot <- function(
     namedColz = NULL,
     geneList_UP = NULL,
     geneList_DWN = NULL,
-    geneColz = c("red", "blue")
+    geneColz = c("red", "blue"),
+    buffer = 150
     ){
 
     seu.obj$majorID_sub_split <- factor(paste0(
@@ -3534,7 +3579,7 @@ splitDot <- function(
             axis.text.x = element_text(angle = 45, vjust = 1, hjust=1,
                                        colour = c(rep("red", length(geneList_UP)), rep("blue", length(geneList_DWN)))),
             legend.box = "vertical",
-            plot.margin = margin(7, 7, 7, 150, "pt"),
+            plot.margin = margin(7, 7, 7, buffer, "pt"),
             legend.position = "bottom",
             legend.justification='center',
             legend.key = element_rect(fill = 'transparent', colour = NA),
@@ -3563,4 +3608,251 @@ splitDot <- function(
 }
 
 
+
+############ cleanMeta ############
+#' Remove extra metadata slots to tidy up Seurat object
+#'
+#' @param seu.obj Seurat object to process
+#' @param metaSlot_keep Optional list of column names to keep. If specified this will be the only parameter used
+#' @param metaSlot_remove Optional list of column names to discard.
+#' @param grepTerms Optional list of terms to search for in metadata columns to then discard.
+#'
+#' @return Seurat object with cleaned metadata
+#' @examples 
+#' @export cleanMeta(seu.obj)
+
+cleanMeta <- function(
+    seu.obj = seu.obj, 
+    metaSlot_keep = NULL,
+    metaSlot_remove = NULL,
+    grepTerms = c("DF", "pANN", "snn_res")
+){
+    if(!is.null(metaSlot_keep)){
+        seu.obj@meta.data <- seu.obj@meta.data %>% 
+            select(all_of(metaSlot_keep))
+    } else{
+        seu.obj@meta.data <- seu.obj@meta.data[ ,!grepl(paste(grepTerms, 
+                                                          collapse = "|"), colnames(seu.obj@meta.data))]
+        
+        seu.obj@meta.data <- seu.obj@meta.data %>% 
+            select(all_of(colnames(seu.obj@meta.data)[!colnames(seu.obj@meta.data) %in% metaSlot_remove]))
+    }
+    
+    
+    return(seu.obj)
+}
+
+
+
+
+sigDEG_heatmap <- function(
+    seu.obj = NULL,
+    groupBy = "",
+    splitBy = "",
+    dge_res = NULL,
+    lfc_thres = 0,
+    forceCleanPlot = F,
+    cond_colz = NULL,
+    clus_colz = NULL,
+    saveName = "../output/",
+    ht_height = 4000,
+    ht_width = 4000,
+    ...
+    ){
+    
+    contrast <- levels(factor(seu.obj@meta.data[ , splitBy]))
+    nClus <- length(levels(factor(seu.obj@meta.data[ , groupBy])))
+    nContrast <- length(contrast)
+
+    seu.obj$type <- factor(
+        x = paste0(as.character(seu.obj@meta.data[ , groupBy]), "-_-", as.character(seu.obj@meta.data[ , splitBy])),
+        levels = paste0(rep(levels(seu.obj@meta.data[ , groupBy]), each = nContrast), "-_-", contrast)
+    )
+    
+    dge_res$gs_base <- factor(dge_res$gs_base, levels = toupper(levels(seu.obj@meta.data[ , groupBy])))
+    res.df <- dge_res %>% 
+        filter(abs(log2FoldChange) > lfc_thres) %>%
+        mutate(
+            direction = ifelse(log2FoldChange > 0, "Up", "Down")
+        ) %>%
+        arrange(gs_base, direction, padj)
+
+    sig.mat <- matrix(
+        nrow = length(unique(res.df$gene)), 
+        ncol = length(levels(seu.obj$type)),
+        dimnames = list(unique(res.df$gene), toupper(levels(seu.obj$type)))
+    )
+
+    for(i in 1:nrow(sig.mat)){
+        for(j in 1:ncol(sig.mat)){
+            cellType <- strsplit(colnames(sig.mat)[j], "-_-")[[1]][1]
+            condition <- strsplit(colnames(sig.mat)[j], "-_-")[[1]][2]
+            if(cellType %in% res.df[res.df$gene == rownames(sig.mat)[i], ]$gs_base){
+                lfc <- res.df[res.df$gene == rownames(sig.mat)[i] & res.df$gs_base == cellType, ]$log2FoldChange
+                if(lfc > 1 & condition == toupper(contrast[2])){
+                    sig.mat[i, j] <- "*"
+                } else if(lfc < -1 & condition == toupper(contrast[1])){
+                    sig.mat[i, j] <- "*"
+                } else{
+                    sig.mat[i, j] <- ""
+                }
+            } else{
+                sig.mat[i, j] <- ""
+            }
+        }
+    }
+
+    res.df <- res.df[!duplicated(res.df$gene), ]
+
+    #extract metadata and data
+    metadata <- seu.obj@meta.data
+    expression <- as.data.frame(FetchData(seu.obj, vars = res.df$gene, layer = "data"))
+    expression$anno_merge <- seu.obj@meta.data[rownames(expression), ]$type
+
+    #get cell type expression averages - do clus avg expression by sample
+    triMean <- function(x, na.rm = TRUE) {
+      mean(stats::quantile(x, probs = c(0.25, 0.50, 0.50, 0.75), na.rm = na.rm))
+    }
+    
+    tuncMean <- function(x){
+        mean(x, trim = 0.15, na.rm = TRUE)
+    }
+    
+    seuMean <- function(x){
+        mean(expm1(x))
+    }
+
+    clusAvg_expression <- expression %>% 
+        group_by(anno_merge) %>% 
+        summarise(across(where(is.numeric), seuMean)) %>% 
+        as.data.frame()
+    rownames(clusAvg_expression) <- clusAvg_expression$anno_merge
+    clusAvg_expression$anno_merge <- NULL
+
+    #filter matrix for DEGs and scale by row
+    mat_scaled <- t(apply(t(clusAvg_expression), 1, scale))
+    colnames(mat_scaled) <- rownames(clusAvg_expression)
+    mat_scaled <- mat_scaled[ , match(colnames(sig.mat), toupper(colnames(mat_scaled)))]
+    mat_scaled <- mat_scaled[match(rownames(sig.mat), rownames(mat_scaled)), ]  
+
+    #avoid confusing plotting
+    if(forceCleanPlot){
+        df1 <- as.data.frame(mat_scaled) %>%
+            rownames_to_column() %>%
+            pivot_longer(cols = colnames(.)[2:ncol(.)]) %>%
+            mutate(
+                join_name = toupper(paste0(rowname, "_", name))
+            )
+
+        df2 <- as.data.frame(sig.mat) %>%
+            rownames_to_column() %>%
+            pivot_longer(cols = colnames(.)[2:ncol(.)]) %>%
+            mutate(
+                join_name = toupper(paste0(rowname, "_", name))
+            ) %>% 
+            left_join(df1[ , c("join_name", "value")], by = "join_name") %>%
+            separate(name, sep = "-_-", remove = T, into = c("name", "condition")) %>%
+            select(-join_name) %>%
+            mutate(
+                condition = ifelse(condition == toupper(contrast[1]), "COND1", "COND2")
+            ) %>%
+            pivot_wider(names_from = condition, values_from = c(value.x, value.y)) %>%
+            mutate(
+                sig = ifelse(
+                    value.x_COND1 != "" & value.y_COND1 > value.y_COND2, "down",
+                    ifelse(value.x_COND2 != "" & value.y_COND1 < value.y_COND2, "up", "")
+                )
+            ) %>% select(rowname, name, sig)
+
+        for(i in 1:nrow(sig.mat)){
+            for(j in 1:ncol(sig.mat)){
+                cellType <- strsplit(colnames(sig.mat)[j], "-_-")[[1]][1]
+                gene <- rownames(sig.mat)[i]
+                
+                #if DE detected but means disagree remove sig star
+                if(sig.mat[i, j] == "*"){
+                    testVal <- df2[df2$rowname == gene & df2$name == cellType, ]$sig
+                    if(testVal == ""){
+                        sig.mat[i, j] <- ""
+                    }
+                }
+            }
+        }
+
+        genesToExclude <- rownames(sig.mat)[rowSums(sig.mat == "*") == 0]
+        mat_scaled <- mat_scaled[!rownames(mat_scaled) %in% genesToExclude, ]
+        sig.mat <- sig.mat[!rownames(sig.mat) %in% genesToExclude, ]
+        
+    }
+    
+    #set annotations
+    ha <- HeatmapAnnotation(
+        Cluster = factor(
+            x = unlist(lapply(colnames(mat_scaled), function(x){strsplit(x,"-_-")[[1]][1]})),
+            levels = levels(seu.obj@meta.data[ , groupBy])
+        ),
+        Condition = unlist(lapply(colnames(mat_scaled), function(x){strsplit(x, "-_-")[[1]][2]})),
+        border = TRUE,
+        col = list(Cluster = clus_colz, Condition = cond_colz),
+        annotation_legend_param = list(
+            Cluster = list(direction = "horizontal", nrow = 3),
+            Condition = list(direction = "vertical", nrow = 2)
+        ),
+        show_annotation_name = FALSE,
+        show_legend = FALSE
+    )
+
+    lgd1 <- Legend(labels = levels(seu.obj@meta.data[ , groupBy]),
+                   legend_gp = gpar(fill = clus_colz), 
+                   title = "Cluster", 
+                   direction = "vertical",
+                   gap = unit(0.6, "cm")
+                  )
+
+    lgd2 <- Legend(labels = names(cond_colz),
+                   legend_gp = gpar(fill = cond_colz), 
+                   title = "Condition", 
+                   direction = "vertical",
+                  )
+
+    pd <- packLegend(lgd1, lgd2, max_width = unit(45, "cm"), 
+        direction = "horizontal", column_gap = unit(5, "mm"), row_gap = unit(0.5, "cm"))
+
+    #plot the data
+    ht <- Heatmap(
+        mat_scaled,
+        name = "mat",
+        cluster_rows = F,
+        row_title_gp = gpar(fontsize = 24),
+        show_row_names = T,
+        cluster_columns = F,
+        top_annotation = ha,
+        show_column_names = F,
+        column_split = factor(unlist(lapply(colnames(mat_scaled), function(x){strsplit(x,"-_-")[[1]][1]})),
+                              levels = levels(seu.obj@meta.data[ , groupBy])),
+        row_title = NULL,
+        column_title = NULL,
+        heatmap_legend_param = list(
+            title = "Average expression",
+            direction = "horizontal"
+            ),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+            grid.text(sig.mat[i, j], x, y, gp = gpar(fontsize = 14, col = "black"))
+        },
+        ...
+    )
+
+    png(file = saveName, width = ht_width, height = ht_height, res=400)
+    par(mfcol=c(1,1))   
+    draw(ht, padding = unit(c(2, 2, 2, 2), "mm"), heatmap_legend_side = "bottom", 
+         annotation_legend_list = pd, annotation_legend_side = "top")
+
+    for(i in 1:nClus){
+        decorate_annotation("Cluster", slice = i, {
+            grid.text(paste0("c", (1:nClus) - 1)[i], just = "center")
+        })
+    }
+    dev.off()
+    return(ht)
+}
 

@@ -71,6 +71,7 @@ gg_color_hue <- function(n) {
 #' @param percent.mt_high numerical; high end cut off for the percent.mt QC parameter.
 #' @param mt_pattern character; regex to find the mitochondrial features and determine the percentage of reads mapping
 #'   to mitochondrial chromosomes. Default: "^MT-".
+#' @param clean_gene_symbols function; if provided the custom function will be used to manipulate rownames(indata). THIS SHOULD RARELY BE USED.
 #' @param mt_feats vector of strings; list of features to use in the calculation of percent.mt
 #' @param nfeatures numerical; number of variable features to use during dimension reduction. Default: 2000
 #' @param removeDubs logical;
@@ -115,7 +116,10 @@ load10x <- function(
     percent.mt_high = 10, 
     mt_pattern = "^MT-",
     mt_feats = NULL,
+    clean_gene_symbols = NULL,
     nfeatures = 2000,
+    soupX = FALSE,
+    din_raw = NULL,
     removeDubs = TRUE, 
     removeRBC_pal = FALSE,
     pal_feats = NULL, 
@@ -137,7 +141,7 @@ load10x <- function(
 
     df.list <- list()
     for (infile in files) {
-
+        message(paste0("INFO: Processing sample ", infile, "."))
         #set up df for export
         if (removeRBC_pal == TRUE){
             df <- data.frame(matrix(ncol = 4, nrow = 0))
@@ -150,16 +154,72 @@ load10x <- function(
         ### Load in the data
 
         #set import path
-        pwd <- paste0("./", din,"/", infile)
+        pwd <- paste0("./", din, "/", infile)
+        if(! soupX) {
+            if(length(list.files(path = paste0(pwd , "/"), pattern = ".h5|.txt", all.files = FALSE, full.names = F)) == 0){
+                #read 10X data
+                indata <- Read10X(pwd)
 
-        #read 10X data
-        indata <- Read10X(pwd)
+                if (! is.null(clean_gene_symbols)) {
+                    # If provided use a custom function to modify the gene symbols before creating the Seurat object
+                    indata <- clean_gene_symbols(indata)
+                }
 
-        #create seurat object
-        seu.obj <- CreateSeuratObject(counts = indata,
-                                      project = infile,
-                                      min.cells = 3,
-                                      min.features = 200)
+                seu.obj <- CreateSeuratObject(counts = indata,
+                                          project = infile,
+                                          min.cells = 3,
+                                          min.features = 200)
+
+            } else if (length(list.files(path = paste0(pwd , "/"), pattern = ".h5", all.files = FALSE, full.names = F)) > 0) {
+                file.pwd <- list.files(path = paste0(pwd , "/"), pattern = ".h5", all.files = FALSE, full.names = T)
+                spar.matrix <- Read10X_h5(file.pwd, use.names = TRUE, unique.features = TRUE)[[1]]
+                seu.obj <- CreateSeuratObject(spar.matrix, project = infile)
+            } else if (length(list.files(path = paste0(pwd , "/"), pattern = ".txt", all.files = FALSE, full.names = F)) > 0) {
+                file.pwd <- list.files(path = paste0(pwd , "/"), pattern = ".txt", all.files = FALSE, full.names = T)
+                mat <- read.table(file.pwd, header = T, row.names = 1) %>% 
+                    rownames_to_column() %>%
+                    mutate(
+                        rowname = ifelse(duplicated(Name), rowname, Name)
+                    ) %>%
+                    select(-Name) %>%
+                    column_to_rownames() %>% 
+                    mutate_all(as.numeric)
+                seu.obj <- CreateSeuratObject(mat, project = infile)
+            } else {
+                message("Input not detected!")
+            }
+        } else {
+            library(SoupX)
+            pwd_raw <- paste0("./", din_raw, "/", infile)
+            indata_filtered <- Read10X(pwd)
+            indata_raw <- Read10X(pwd_raw)
+            seu.obj <- CreateSeuratObject(
+                counts = indata_filtered, project = infile, min.cells = 3, min.features = 0
+            )
+            seu.obj <- seu.obj %>% NormalizeData() %>% FindVariableFeatures() %>% 
+                ScaleData() %>% 
+                RunPCA() %>% FindNeighbors(., dims = 1:30, reduction = "pca") %>% 
+                FindClusters(., resolution = 0.05, cluster.name = "preFilter_clusters")
+            markers <- FindAllMarkers(seu.obj, min.pct = 0.3, logfc.threshold = 0.58, only.pos = T) %>% group_by(cluster) %>% do(head(., n = 7))
+            nonExpressedGeneList  <- split(markers$gene, markers$cluster)
+            print(nonExpressedGeneList)
+            soup <- SoupChannel(toc = indata_filtered, tod = indata_raw)
+            soup <- setClusters(soup, setNames(seu.obj$preFilter_clusters, colnames(seu.obj)))
+            soup <- autoEstCont(soup)
+            useToEst <- estimateNonExpressingCells(soup, nonExpressedGeneList)
+            if(sum(useToEst) != 0) {
+                calculateContaminationFraction(soup, nonExpressedGeneList, useToEst)
+            } else {
+                message("Estimated global contamination fraction of NA")
+            }
+            
+            seu.obj@assays$RNA$raw <- seu.obj@assays$RNA$counts
+            seu.obj@assays$RNA$counts <- adjustCounts(soup)
+            seu.obj@assays$RNA$scale.data <- NULL
+            seu.obj@assays$RNA$data <- NULL
+            Idents(seu.obj) <- "orig.ident"
+
+        }
 
         #add mitochondrial/hemoglobin/pal QC data to seurat metadata
         if(is.null(mt_feats)){
@@ -177,7 +237,7 @@ load10x <- function(
 
         #visualize QC metrics as a violin plot
         p <- VlnPlot(seu.obj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"))
-        ggsave(paste0("./",dout,"/", infile,"_QC_S1.png"))
+        ggsave(plot = p, paste0("./", dout, "/", infile, "_QC_S1.png"), height = 7, width = 7)
 
         #check if running through entire code
         if (testQC == TRUE){
@@ -198,7 +258,7 @@ load10x <- function(
         #next steps normalize, scale, and run UMAP
         seu.obj <- NormalizeData(seu.obj,
                                  normalization.method = "LogNormalize",
-                                 Scale.factor = 10000)
+                                 scale.factor = 10000)
 
         seu.obj <- FindVariableFeatures(seu.obj,
                                         selection.method = "vst",
@@ -316,7 +376,7 @@ load10x <- function(
         # This formula assumes 0.5% doublet per 1000 cells (lower than 10x 
         # recommendation to account for homotypic doublets and cells removed 
         # during QC filtering)
-        expected_dub_rate <- dim(seu.obj)[2]/1000*0.5/100
+        expected_dub_rate <- dim(seu.obj)[2] / 1000 * (0.5 / 100)
 
         nExp_poi <- round(expected_dub_rate*length(seu.obj$orig.ident))
         nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
@@ -333,7 +393,7 @@ load10x <- function(
 
         #export UMAP highlighting doublet vs singlet cells
         DimPlot(seu.obj, pt.size = 1, label = TRUE, label.size = 5, reduction = "umap", group.by = "doublet" )
-        ggsave(paste0("./", dout, "/", infile,"_DF_S1.png") )
+        ggsave(paste0("./", dout, "/", infile, "_DF_S1.png") )
 
         if (removeDubs == TRUE){
             #remove putative doublets
@@ -413,7 +473,7 @@ load10x <- function(
 
     #save the cell numbers throughout filtering
     cellCounts <- do.call(rbind, df.list)
-    write.csv(cellCounts, file = paste0("./",dout,"/", outName, "_cell_counts_S1.csv"))
+    write.csv(cellCounts, file = paste0("./", dout, "/", outName, "_cell_counts_S1.csv"))
 }
 
 ############ integrateData ############
@@ -533,7 +593,7 @@ integrateData <- function(
 
     #if any sample has less than 100 cells. modify k.weight to match the sample with the lowest number of cells
     if(k > min(table(seu.obj$orig.ident))){
-        k <- min(table(seu.obj$orig.ident))-5
+        k <- min(table(seu.obj$orig.ident)) - 5
     }
 
     
@@ -860,7 +920,7 @@ dataVisUMAP <- function(file = NULL, seu.obj = NULL,
                         returnFeats = T,
                         algorithm = 3, 
                         prefix = "integrated_snn_res.",  
-                        assay = "integrated", reduction = "RNA",
+                        assay = "RNA", reduction = "integrated",
                         saveRDS = T, return_obj = T,
                         features = c("PTPRC", "CD3E", "CD8A", "GZMA", 
                                      "IL7R", "ANPEP", "FLT3", "DLA-DRA", 
@@ -896,10 +956,8 @@ dataVisUMAP <- function(file = NULL, seu.obj = NULL,
     stashID <- paste0(stashID, "_", reduction)
     seu.integrated.obj[[stashID]] <- seu.integrated.obj@active.ident
 
-    #build hierarchical clustering based on clustering results
-    DefaultAssay(seu.integrated.obj) <- "RNA"
-    seu.integrated.obj <- NormalizeData(seu.integrated.obj)
-    seu.integrated.obj <- BuildClusterTree(seu.integrated.obj, assay = "RNA", dims = 1:final.dims)
+#     #build hierarchical clustering based on clustering results
+#     seu.integrated.obj <- BuildClusterTree(seu.integrated.obj, assay = assay, dims = 1:final.dims)
 
     #export UMAP colored by sample ID and cluster
     p <- DimPlot(seu.integrated.obj, label = TRUE, reduction = reduction.name, group.by = stashID)
@@ -991,10 +1049,11 @@ prettyFeats <- function(
     order = FALSE, 
     min.cutoff = NA, 
     pt.size = NULL,
+    assay = "RNA",
     ...
 ){
 
-    DefaultAssay(seu.obj) <- "RNA"
+    DefaultAssay(seu.obj) <- assay
     features <- features[features %in% c(unlist(rownames(seu.obj)),unlist(colnames(seu.obj@meta.data)))]
 
     if(is.null(ncol)){
@@ -1383,101 +1442,75 @@ freqPlots <- function(
     seu.obj = NULL, 
     groupBy = "clusterID", 
     refVal = "orig.ident",
+    colorBy = NULL,
     comp = "cellSource",
-    colz = NULL, 
-    namez = NULL,
-    method = 1, 
+    pair = NULL,
     nrow = 3, 
-    title = F, 
+    showPval = F,
+    
     legTitle = NULL,
-    no_legend = F, 
-    showPval = T
+    colz = NULL,
+    namez = NULL,
+    method = NULL    
 ) {
     
-    if(method == 1){
-    fq <- prop.table(table(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[,refVal]), 2) *100
-    df <- reshape2::melt(fq, value.name = "freq", varnames = c(groupBy, 
-                                                               refVal)) 
-        } else if(method == 2){
-        
-        Idents(seu.obj) <- refVal
-        set.seed(12)
-        seu.sub <- subset(x = seu.obj, downsample = min(table(seu.obj@meta.data[[refVal]])))
-
-        fq <- prop.table(table(seu.sub@meta.data[[refVal]], seu.sub@meta.data[,groupBy]), 2) *100       
-        df <- reshape2::melt(fq, value.name = "freq", varnames = c(refVal,
-                                                                   groupBy))
-    
-    } else{print("Method is not recognized. Options are method = 1 (by sample) OR method = 2 (by cluster).")
-          break()
-          }
-    
-    df <- df %>% left_join(seu.obj@meta.data[ ,c(refVal,comp)][!duplicated(seu.obj@meta.data[ ,c(refVal,comp)][,1]),], by = refVal)
-    #df <- df[grepl("\\b9\\b|12|28|33|41",df$clusterID),] #12 # add grep for only certain groupBy vals
-    #colnames(df) <- c("clusterID","orig.ident","freq","cellSource")
-    
-    if(!is.null(colz)){
-        if(length(colz) == 1){
-            df <- df %>% left_join(seu.obj@meta.data[ ,c(refVal,colz)][!duplicated(seu.obj@meta.data[ ,c(refVal,colz)][,1]),], by = refVal)
-            warn1 <- F
-        }else{print("Warning: It is ideal if colors are stored in meta.data slot of the Seurat object. Colors may be mismatched.")
-              warn1 <- T
-             }
-    }else{warn1 <- F}
-    
-    if(is.null(namez)){namez <- refVal}
-    
-    if(ifelse(length(namez) > 1, "", namez) != refVal){
-         if(length(namez) == 1){
-             df <- df %>% left_join(seu.obj@meta.data[ ,c(refVal,namez)][!duplicated(seu.obj@meta.data[ ,c(refVal,namez)][,1]),], by = refVal)
-             warn2 <- F
-         }else{print("Warning: It is ideal if names are stored in meta.data slot of the Seurat object. Names may be mismatched.")
-               warn2 <- T
-               }
-    }else{warn2 <- F}
-    
-    p <- ggplot(df, aes_string(y = "freq", x = comp)) + 
-    labs(x = NULL, y = "Proportion (%)") + 
-    theme_bw() + 
-    theme(panel.grid.minor = element_blank(),
-          panel.grid.major = element_blank(), 
-          strip.background = element_rect(fill = NA, color = NA), 
-          strip.text = element_text(face = "bold"), 
-          axis.ticks.x = element_blank(), 
-          axis.text = element_text(color = "black")         )
-    
-    if(is.null(legTitle)){
-        legTitle <- refVal
+    if(is.null(colorBy)) {
+        colorBy <- refVal
     }
     
     
-    #note these are not corrected p-values
+    fq <- prop.table(table(seu.obj@meta.data[[groupBy]], seu.obj@meta.data[,refVal]), 2) * 100
+    df <- reshape2::melt(fq, value.name = "freq", varnames = c(groupBy, refVal)) 
+   
+    if (is.null(pair)) {
+        meta.df <- seu.obj@meta.data[ ,c(refVal, comp)]
+        df <- left_join(
+            df,
+            meta.df[! duplicated(meta.df[, 1]), ], 
+            by = refVal
+        )
+    } else {
+        meta.df <- seu.obj@meta.data[ ,c(refVal, comp, pair, colorBy)]
+        df <- left_join(
+            df,
+            meta.df[! duplicated(meta.df[, 1]), ], 
+            by = refVal
+        )
+        colorBy <- pair
+    }
+   
+    p <- ggplot(df, aes_string(y = "freq", x = comp)) + 
+        labs(x = NULL, y = "Proportion (%)") + 
+        theme_bw() + 
+        theme(
+            panel.grid.minor = element_blank(),
+            panel.grid.major = element_blank(), 
+            strip.background = element_rect(fill = NA, color = NA), 
+            strip.text = element_text(face = "bold"), 
+            axis.ticks.x = element_blank(), 
+            axis.text = element_text(color = "black")
+        )
+    
+    #note these are not corrected p-values if using stat testing
     pi <- p + facet_wrap(groupBy, scales = "free_y", nrow = nrow) + 
-    guides(fill = "none") + 
-    geom_boxplot(aes_string(x = comp), alpha = 0.25, outlier.color = NA) + 
-    geom_point(size = 2, position = position_jitter(width = 0.25),
-               aes_string(x = comp, y = "freq", color = refVal)) +
-    labs(color = legTitle) +
-    {if(showPval){ggpubr::stat_compare_means(aes(label = paste0("p = ", ..p.format..)), label.x.npc = "left", label.y.npc = 1,vjust = -1, size = 3)}} + 
+        guides(fill = "none") + 
+        geom_boxplot(aes_string(x = comp), alpha = 0.25, outlier.color = NA) + 
+        geom_point(
+            aes_string(x = comp, y = "freq", color = colorBy),
+            size = 2, position = position_jitter(width = 0.25)
+        ) +
+    {if(showPval) {
+        ggpubr::stat_compare_means(
+            aes(label = paste0("p = ", ..p.format..)), label.x.npc = "left", 
+            label.y.npc = 1, vjust = -1, size = 3
+        )
+    }} + 
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.2))) +
-    theme(panel.grid.major = element_line(color = "grey", linewidth = 0.25),
-          #legend.position = "none",
-          text = element_text(size = 12)
-          ) +                    
-    {if(!is.null(colz)){
-        scale_color_manual(labels = if(warn1){
-            namez
-        }else{
-            levels(df[[namez]])
-        },
-                           values = if(warn2){
-                               colz
-                           }else{
-                               levels(df[[colz]])
-                           })}} + {if(no_legend == T){NoLegend()}}
-                                           
+    theme(
+        panel.grid.major = element_line(color = "grey", linewidth = 0.25),
+        text = element_text(size = 12)
+    )                                          
     return(pi)
-
 }
 
 ############ vilnSplitComp ############
@@ -1828,231 +1861,265 @@ pseudoDEG <- function(
             meta <- meta[meta$clusterID == x,]
             meta[,colnames(meta)] <- lapply(meta[,colnames(meta)] , factor)
         }
-        if(mkDir){
-            outDir <- paste0(outDir, "/", x, "/")
-            dir.create(outDir)
-            outfileBase <- paste0(outDir, outName, "_cluster_")
-        }
-        
-        if(!is.null(featuresToExclude)){
-            pbj <- pbj[!rownames(pbj) %in% featuresToExclude , ]
-        }
+        if(sum(table(meta$groupID) < 2) == 0) {
 
-        if(paired){
-            dds <- DESeqDataSetFromMatrix(round(pbj), 
-                                          colData = meta,
-                                          design = formula(paste0("~ groupID + ",noquote(pairBy))))
-            
-            message("Using the following contrast formula:\n",
-                    formula(paste0("~ groupID + ",noquote(pairBy))))
-        }else{
-            dds <- DESeqDataSetFromMatrix(round(pbj), 
-                                          colData = meta,
-                                          design = ~ groupID)
-            
-            message("Using the following contrast formula:\n",
-                    formula(~ groupID))
-        }
-        if(returnDDS){
-            return(dds)
-        }
+            if(mkDir){
+                outDir <- paste0(outDir, "/", x, "/")
+                dir.create(outDir)
+                outfileBase <- paste0(outDir, outName, "_cluster_")
+            }
 
-        #transform and plot the data with PCA
-        rld <- varianceStabilizingTransformation(dds, blind=TRUE)
+            if(!is.null(featuresToExclude)){
+                pbj <- pbj[!rownames(pbj) %in% featuresToExclude , ]
+            }
 
-        if(!minimalOuts){
-            outfile <- paste0(outfileBase, x,"_pca.png")
-            p <- DESeq2::plotPCA(rld, intgroup = "groupID")
-            ggsave(outfile, width = 7, height = 7)
-            
-            outfile <- paste0(outfileBase, x,"_pca2.png")
-            p <- DESeq2::plotPCA(rld, intgroup = "sampleID")
-            ggsave(outfile, width = 7, height = 7)
-        }
-        
-        #set up QC to evaluate treatment seperation by heatmap & plot
-        rld <- rlog(dds, blind=FALSE)
-        rld_mat <- assay(rld)
-        rld_cor <- cor(rld_mat)
-
-        if(!minimalOuts){
-            outfile <- paste0(outfileBase, x,"_pheatmap.png")
-            p <- pheatmap::pheatmap(rld_cor)
-            ggsave(p, file = outfile)
-        }
-        if(test.use == "LRT"){
             if(paired){
-                dds <- DESeq(dds,
-                             test = "LRT",
-                             reduced = formula(paste0("~",noquote(pairBy)))
-                            )
-                res <- results(dds)
-            } else{
-                dds <- DESeq(dds,
-                             test = "LRT",
-                             reduced = ~1)
-                res <- results(dds)
+                dds <- DESeqDataSetFromMatrix(round(pbj), 
+                                              colData = meta,
+                                              design = formula(paste0("~ groupID + ",noquote(pairBy))))
+
+                message("Using the following contrast formula:\n",
+                        formula(paste0("~ groupID + ",noquote(pairBy))))
+            }else{
+                dds <- DESeqDataSetFromMatrix(round(pbj), 
+                                              colData = meta,
+                                              design = ~ groupID)
+
+                message("Using the following contrast formula:\n",
+                        formula(~ groupID))
             }
-        } else if (test.use == "Wald"){
-            dds <- DESeq(dds)
-            
-            #extract Wald test results
-            if(!is.null(idents.1_NAME) | !is.null(idents.2_NAME)){
-                contrast <- c("groupID", idents.1_NAME, idents.2_NAME)
-            } else{
-                contrast <- c("groupID", unique(meta$groupID)[1], unique(meta$groupID)[2])
-                print("Variables idents.1_NAME and/or idents.2_NAME not specify, this may impact directionality of contrast - confirm results are as expect and/or specify ident names.")
+            if(returnDDS){
+                return(dds)
             }
 
-            if(strict_lfc){
-                lfcCut_strict <- lfcCut
-            } else{
-                lfcCut_strict <- 0
+            #transform and plot the data with PCA
+            rld <- varianceStabilizingTransformation(dds, blind=TRUE)
+
+            if(!minimalOuts){
+                outfile <- paste0(outfileBase, x,"_pca.png")
+                p <- DESeq2::plotPCA(rld, intgroup = "groupID")
+                ggsave(outfile, width = 7, height = 7)
+
+                outfile <- paste0(outfileBase, x,"_pca2.png")
+                p <- DESeq2::plotPCA(rld, intgroup = "sampleID")
+                ggsave(outfile, width = 7, height = 7)
             }
-            
-            #perform logFoldChange and shrinkage
-            message(paste("The lfc calculation will be based on", contrast[2], 
-                          "versus", contrast[3]))
-            res <- results(dds, 
-                           contrast = contrast,
-                           alpha = padj_cutoff,
-                           lfcThreshold = lfcCut_strict, #this increases stringency
-                           cooksCutoff = FALSE)
-            summary(res)
 
-            res <- lfcShrink(dds, 
-                             contrast = contrast,
-                             res = res,
-                             type = "normal") #would prefer to use something other than normal
+            #set up QC to evaluate treatment seperation by heatmap & plot
+            rld <- rlog(dds, blind=FALSE)
+            rld_mat <- assay(rld)
+            rld_cor <- cor(rld_mat)
 
-        } else{
-            message("\nERROR: test.use variable is not valid. Please specify Wald or LRT then try again.\n")
-            break
-        }
-
-        #extract the results and save as a .csv
-        res_tbl <- res %>% data.frame() %>%
-        rownames_to_column(var="gene") %>% as_tibble()
-        sig_res <- res_tbl %>% filter(padj < padj_cutoff, abs(log2FoldChange) > lfcCut) %>% arrange(padj)
-        if(saveSigRes){
-            sig_res$gs_base <- toupper(x)
-            write.csv(sig_res,
-                      file = paste0(outfileBase, x,"_all_genes.csv"),
-                      quote = FALSE,
-                      row.names = FALSE)
-        }
-        
-        if(test.use == "LRT"){
-            return(res)
-        } else{
-            #get nomarlized counts and plot top 20 DEGs
-            normalized_counts <- counts(dds, 
-                                        normalized = TRUE)
-            top20_sig_genes <- sig_res %>% arrange(padj) %>% pull(gene) %>% head(n=20)
-            top20_sig_norm <- data.frame(normalized_counts) %>%
-            rownames_to_column(var = "gene") %>% filter(gene %in% top20_sig_genes)
-            gathered_top20_sig <- top20_sig_norm %>%
-            gather(colnames(top20_sig_norm)[2:length(colnames(top20_sig_norm))], key = "samplename", value = "normalized_counts")
-            gathered_top20_sig <- meta %>% inner_join(gathered_top20_sig, by = c("sampleID" = "samplename")) #need more metadata
-
-            if(dim(gathered_top20_sig)[1] > 0){ 
-                if(!minimalOuts){
-                    outfile <- paste0(outfileBase, x,"_genePlot.png")
-                    p <- ggplot(gathered_top20_sig) +
-                    geom_point(aes(x = gene, 
-                                   y = normalized_counts, 
-                                   color = groupID), #need to fix samplename & change to groupID
-                               position=position_jitter(w=0.1, h=0)) +
-                    scale_y_log10() +
-                    xlab("Genes") +
-                    ylab("log10 Normalized Counts") +
-                    ggtitle("Top 20 Significant DE Genes") +
-                    theme_bw() +
-                    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-                    theme(plot.title = element_text(hjust = 0.5))
-                    ggsave(p, file = outfile)
-                }
-
-                #extract sig DEGs based on normalized data and plot heat map
-                sig_norm <- data.frame(normalized_counts) %>%
-                rownames_to_column(var = "gene") %>% filter(gene %in% sig_res$gene)
-                rownames(sig_norm) <- sig_norm$gene
-                colAnn <- as.data.frame(meta[,"groupID"], colname = "groupID")
-                rownames(colAnn) <- meta[,"sampleID"]
-                colnames(colAnn) <- "groupID"
-                heat_colors <- brewer.pal(6, "YlOrRd")
-
-                #set threshold and flag data points then plot with ggplot
-                if(!is.null(filterTerm)){
-                    feats_to_hide <- res_tbl$gene[grepl(paste(filterTerm, collapse = "|"), res_tbl$gene)]
+            if(!minimalOuts){
+                outfile <- paste0(outfileBase, x,"_pheatmap.png")
+                p <- pheatmap::pheatmap(rld_cor)
+                ggsave(p, file = outfile)
+            }
+            if(test.use == "LRT"){
+                if(paired){
+                    dds <- DESeq(dds,
+                                 test = "LRT",
+                                 reduced = formula(paste0("~",noquote(pairBy)))
+                                )
+                    res <- results(dds)
                 } else{
-                    feats_to_hide <- ""
+                    dds <- DESeq(dds,
+                                 test = "LRT",
+                                 reduced = ~1)
+                    res <- results(dds)
                 }
-                
-                # Clean results and add singnifiance tags
-                res_table_thres <- res_tbl %>% 
-                    mutate(
-                        threshold = ifelse(padj < padj_cutoff & abs(log2FoldChange) >= lfcCut, 
-                                           ifelse(log2FoldChange > lfcCut, 'Up', 'Down'), 'Stable')
-                    ) %>%
-                    na.omit() %>%
-                    arrange(padj) %>%
-                    filter(! gene %in% feats_to_hide)
-                
-                # Tag features to label
-                cntUp <- nrow(res_table_thres[res_table_thres$threshold == "Up",])
-                cntDwn <- nrow(res_table_thres[res_table_thres$threshold == "Down",])
-                top20_up <- res_table_thres[res_table_thres$threshold == "Up",] %>% do(head(., n = topn[1]))
-                top20_down <- res_table_thres[res_table_thres$threshold == "Down",] %>%  do(head(., n = topn[2]))
-                res_table_thres <- res_table_thres %>% 
-                    mutate(
-                        label = ifelse(gene %in% c(top20_up$gene, top20_down$gene, addLabs), gene, NA)
-                    )
+            } else if (test.use == "Wald"){
+                dds <- DESeq(dds)
 
-                if(fromFile){
-                    if(is.null(title)){
-                        title <- paste0(idents.1_NAME, " vs ",idents.2_NAME, "within", x)
+                #extract Wald test results
+                if(!is.null(idents.1_NAME) | !is.null(idents.2_NAME)){
+                    contrast <- c("groupID", idents.1_NAME, idents.2_NAME)
+                } else{
+                    contrast <- c("groupID", unique(meta$groupID)[1], unique(meta$groupID)[2])
+                    print("Variables idents.1_NAME and/or idents.2_NAME not specify, this may impact directionality of contrast - confirm results are as expect and/or specify ident names.")
+                }
+
+                if(strict_lfc){
+                    lfcCut_strict <- lfcCut
+                } else{
+                    lfcCut_strict <- 0
+                }
+
+                #perform logFoldChange and shrinkage
+                message(paste("The lfc calculation will be based on", contrast[2], 
+                              "versus", contrast[3]))
+                res <- results(dds, 
+                               contrast = contrast,
+                               alpha = padj_cutoff,
+                               lfcThreshold = lfcCut_strict, #this increases stringency
+                               cooksCutoff = FALSE)
+                summary(res)
+
+                res <- lfcShrink(dds, 
+                                 contrast = contrast,
+                                 res = res,
+                                 type = "normal") #would prefer to use something other than normal
+
+            } else{
+                message("\nERROR: test.use variable is not valid. Please specify Wald or LRT then try again.\n")
+                break
+            }
+
+            #extract the results and save as a .csv
+            res_tbl <- res %>% data.frame() %>%
+            rownames_to_column(var="gene") %>% as_tibble()
+            sig_res <- res_tbl %>% filter(padj < padj_cutoff, abs(log2FoldChange) > lfcCut) %>% arrange(padj)
+            if(saveSigRes){
+                sig_res$gs_base <- toupper(x)
+                write.csv(sig_res,
+                          file = paste0(outfileBase, x,"_all_genes.csv"),
+                          quote = FALSE,
+                          row.names = FALSE)
+            }
+
+            if(test.use == "LRT"){
+                return(res)
+            } else{
+                #get nomarlized counts and plot top 20 DEGs
+                normalized_counts <- counts(dds, 
+                                            normalized = TRUE)
+                top20_sig_genes <- sig_res %>% arrange(padj) %>% pull(gene) %>% head(n=20)
+                top20_sig_norm <- data.frame(normalized_counts) %>%
+                rownames_to_column(var = "gene") %>% filter(gene %in% top20_sig_genes)
+                gathered_top20_sig <- top20_sig_norm %>%
+                gather(colnames(top20_sig_norm)[2:length(colnames(top20_sig_norm))], key = "samplename", value = "normalized_counts")
+                gathered_top20_sig <- meta %>% inner_join(gathered_top20_sig, by = c("sampleID" = "samplename")) #need more metadata
+
+                if(dim(gathered_top20_sig)[1] > 0){ 
+                    if(!minimalOuts){
+                        outfile <- paste0(outfileBase, x,"_genePlot.png")
+                        p <- ggplot(gathered_top20_sig) +
+                        geom_point(
+                          aes(x = gene, y = normalized_counts, color = groupID, group = groupID),
+                          position = position_dodge(width = 1)
+                        ) +
+                        scale_y_log10() +
+                        xlab("Genes") +
+                        ylab("log10 Normalized Counts") +
+                        ggtitle("Top 20 Significant DE Genes") +
+                        theme_bw() +
+                        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                        theme(plot.title = element_text(hjust = 0.5))
+                        ggsave(p, file = outfile)
+                    }
+
+                    #extract sig DEGs based on normalized data and plot heat map
+                    sig_norm <- data.frame(normalized_counts) %>%
+                    rownames_to_column(var = "gene") %>% filter(gene %in% sig_res$gene)
+                    rownames(sig_norm) <- sig_norm$gene
+                    colAnn <- as.data.frame(meta[,"groupID"], colname = "groupID")
+                    rownames(colAnn) <- meta[,"sampleID"]
+                    colnames(colAnn) <- "groupID"
+                    heat_colors <- brewer.pal(6, "YlOrRd")
+
+                    #set threshold and flag data points then plot with ggplot
+                    if(!is.null(filterTerm)){
+                        feats_to_hide <- res_tbl$gene[grepl(paste(filterTerm, collapse = "|"), res_tbl$gene)]
+                    } else{
+                        feats_to_hide <- ""
+                    }
+
+                    # Clean results and add singnifiance tags
+                    res_table_thres <- res_tbl %>% 
+                        mutate(
+                            threshold = ifelse(padj < padj_cutoff & abs(log2FoldChange) >= lfcCut, 
+                                               ifelse(log2FoldChange > lfcCut, 'Up', 'Down'), 'Stable')
+                        ) %>%
+                        na.omit() %>%
+                        arrange(padj) %>%
+                        filter(! gene %in% feats_to_hide)
+
+                    # Tag features to label
+                    cntUp <- nrow(res_table_thres[res_table_thres$threshold == "Up",])
+                    cntDwn <- nrow(res_table_thres[res_table_thres$threshold == "Down",])
+                    top20_up <- res_table_thres[res_table_thres$threshold == "Up",] %>% do(head(., n = topn[1]))
+                    top20_down <- res_table_thres[res_table_thres$threshold == "Down",] %>%  do(head(., n = topn[2]))
+                    res_table_thres <- res_table_thres %>% 
+                        mutate(
+                            label = ifelse(gene %in% c(top20_up$gene, top20_down$gene, addLabs), gene, NA)
+                        )
+
+                    if(fromFile){
+                        if(is.null(title)){
+                            title <- paste0(idents.1_NAME, " vs ",idents.2_NAME, "within", x)
+                        }
+                    }
+
+                    p <- ggplot(data = res_table_thres, aes(x = log2FoldChange, y = -log10(padj), colour = threshold)) +
+                        geom_vline(xintercept = c(-lfcCut,lfcCut), lty = 4, col="black", lwd = 0.8) +
+                        geom_hline(yintercept = -log10(padj_cutoff), lty = 4, col="black", lwd = 0.8) +
+                        geom_point(alpha = 0.4, size = 3.5) +
+                        geom_label_repel(max.overlaps = Inf, size = labSize, label = res_table_thres$label, 
+                                         show.legend = FALSE) +
+                        labs(
+                            x = "log2(fold change)",
+                            y = "-log10(padj)",
+                            title = title
+                        ) + 
+                        scale_color_manual(
+                            values = c("Down" = dwnCol, "Stable" = stblCol, "Up" = upCol), 
+                            labels = c("Down" = paste0("Down (", cntDwn, ")"), 
+                                       "Stable" = "Stable", 
+                                       "Up" = paste0("Up (", cntUp, ")"))
+                        ) +
+                        theme_bw() +
+                        theme(
+                            plot.title = element_text(size = 20, hjust = 0.5), 
+                            legend.position = "right", 
+                            legend.title = element_blank()
+                        )
+
+                    ggsave(p, file = paste0(outfileBase, x, "_volcano.png"))
+
+                    if(returnVolc){
+                        return(p)
                     }
                 }
-
-                p <- ggplot(data = res_table_thres, aes(x = log2FoldChange, y = -log10(padj), colour = threshold)) +
-                    geom_vline(xintercept = c(-lfcCut,lfcCut), lty = 4, col="black", lwd = 0.8) +
-                    geom_hline(yintercept = -log10(padj_cutoff), lty = 4, col="black", lwd = 0.8) +
-                    geom_point(alpha = 0.4, size = 3.5) +
-                    geom_label_repel(max.overlaps = Inf, size = labSize, label = res_table_thres$label, 
-                                     show.legend = FALSE) +
-                    labs(
-                        x = "log2(fold change)",
-                        y = "-log10(padj)",
-                        title = title
-                    ) + 
-                    scale_color_manual(
-                        values = c("Down" = dwnCol, "Stable" = stblCol, "Up" = upCol), 
-                        labels = c("Down" = paste0("Down (", cntDwn, ")"), 
-                                   "Stable" = "Stable", 
-                                   "Up" = paste0("Up (", cntUp, ")"))
-                    ) +
-                    theme_bw() +
-                    theme(
-                        plot.title = element_text(size = 20, hjust = 0.5), 
-                        legend.position = "right", 
-                        legend.title = element_blank()
-                    )
-                
-                ggsave(p, file = paste0(outfileBase, x, "_volcano.png"))
-                
-                if(returnVolc){
-                    return(p)
-                }
             }
+        } else {
+            NULL
         }
     })
 }
 ############ btwnClusDEG ############
 #work in progress             - need to to fix doLinDEG option ### NOTE: cannot have special char in ident name
-btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL, idents.2 = NULL, bioRep = "orig.ident",padj_cutoff = 0.05, lfcCut = 0.58, topn=c(20,20), strict_lfc = F,
-                        minCells = 25, outDir = "", title = NULL, idents.1_NAME = "", idents.2_NAME = "", returnVolc = F, doLinDEG = F, paired = T, addLabs = NULL, lowFilter = F, dwnSam = T, setSeed = 12, dwnCol = "blue", stblCol = "grey",upCol = "red", labSize = 3, filterTerm = NULL
-                    ){
+btwnClusDEG <- function(
+    seu.obj = NULL,
+    groupBy = "majorID_sub", 
+    idents.1 = NULL, 
+    idents.2 = NULL,
+    bioRep = "orig.ident",
+    padj_cutoff = 0.05, 
+    lfcCut = 0.58, 
+    topn=c(20,20), 
+    strict_lfc = F,
+    minCells = 25, 
+    outDir = "", 
+    title = NULL, 
+    idents.1_NAME = "",
+    idents.2_NAME = "", 
+    returnVolc = F, 
+    doLinDEG = F, 
+    paired = T, 
+    addLabs = NULL, 
+    lowFilter = F, 
+    dwnSam = T, 
+    saveSigRes = TRUE,
+    setSeed = 12, 
+    dwnCol = "blue", 
+    stblCol = "grey",
+    upCol = "red", 
+    labSize = 3, 
+    filterTerm = NULL, 
+    test.use = "Wald",
+    onlyExtractPBJ = FALSE,
+    featuresToExclude = NULL
+){
     
     seu.integrated.obj <- seu.obj
     DefaultAssay(seu.integrated.obj) <- "RNA"
@@ -2062,26 +2129,29 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
         idents.2 <- levels(seu.integrated.obj)[!levels(seu.integrated.obj) %in% idents.1]
     }
     
-    seu.sub <- subset(seu.integrated.obj, idents = as.list(append(idents.1,idents.2)))
+    seu.sub <- subset(seu.integrated.obj, idents = as.list(append(idents.1, idents.2)))
     
-    if(all(idents.1 %in% levels(seu.integrated.obj))){
-        if(length(idents.1) > 1){
-            grepTerm <- paste(idents.1,collapse="|")
-        }else{
-            grepTerm <- idents.1
+    if(test.use == "Wald"){
+        if(all(idents.1 %in% levels(seu.integrated.obj))){
+            if(length(idents.1) > 1){
+                grepTerm <- paste(idents.1, collapse = "|")
+            } else{
+                grepTerm <- idents.1
+            }
+        } else{
+            print("Idents not found in seurat object. Please check that they are correct and try again.")
+            break()
         }
-    }else{
-        print("Idents not found in seurat object. Please check that they are correct and try again.")
-        break()
+        seu.sub$compare <- ifelse(grepl(grepTerm, seu.sub@meta.data[[groupBy]]), "idents.1", "idents.2")
+    } else{
+        seu.sub$compare <- seu.sub@meta.data[[groupBy]]
     }
 
     if(is.null(title)){
-        title <- paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME))
+        title <- paste0(gsub(" ", "_", idents.1_NAME), "_vs_", gsub(" ", "_", idents.2_NAME))
     }
-    seu.sub$compare <- ifelse(grepl(grepTerm, seu.sub@meta.data[[groupBy]]), "idents.1", "idents.2")
     
     Idents(seu.sub) <- "compare"
-
     #extract number of biological replicates in the grouping system
     ztest <- dim(table(seu.sub@meta.data[[bioRep]]))
 
@@ -2093,22 +2163,24 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
 
     Idents(seu.sub) <- "conditional"
     seu.sub.clean <- subset(seu.sub, idents = zKeep)
-    #seu.sub.clean <- NormalizeData(seu.sub.clean)
     
     z <- table(seu.sub.clean@meta.data$conditional)
-    
+
     #extract and save metadata in a data.frame
     z <- as.data.frame(z)
     colnames(z) <- c("sampleID", "nCell")
-    z$groupID <- ifelse(grepl("idents.1", z$sampleID), idents.1_NAME, idents.2_NAME)
+    if(test.use == "Wald"){
+        z$groupID <- ifelse(grepl("idents.1", z$sampleID), idents.1_NAME, idents.2_NAME)
+    } else{
+        z <- z %>% separate(col = sampleID, into = c(NA, "groupID"), sep = "_",  remove = FALSE)
+    }
     
     ds <- min(z$nCell)
 
     if(dwnSam){
-    message <- paste0("Downsampling at a level of ", ds, " cells per replicate")
-    print(message)
+        message(paste("Downsampling at a level of", ds, "cells per replicate"))
         
-    #randomly downsample the subset data
+        #randomly downsample the subset data
         Idents(seu.sub.clean) <- "conditional"
         set.seed(setSeed)
         seu.sub.clean <- subset(x = seu.sub.clean, downsample = ds)
@@ -2132,19 +2204,36 @@ btwnClusDEG <- function(seu.obj = NULL,groupBy = "majorID_sub", idents.1 = NULL,
     ### pseudobulk DEG using DEseq2 backbone ###
     meta <- z
     
-    meta$bioRepPair <- str_split_fixed(meta$sampleID, "_ident.", 2)[,1]
-    if(doLinDEG == T){
+    if(test.use == "Wald"){
+        meta$bioRepPair <- str_split_fixed(meta$sampleID, "_ident.", 2)[,1]
+    } else{
+        meta <- meta %>% separate(col = sampleID, into = c("bioRepPair", NA), sep = "_",  remove = FALSE)
+    }
+    
+    if(doLinDEG){
         seu.sub.clean$compareLinDEG <- ifelse(grepl(grepTerm, seu.sub.clean@meta.data$clusterID), "idents.1", "idents.2")
         seu.sub.clean$groupz <- "cellz"
-        linDEG(seu.obj = seu.sub.clean, threshold = 1, thresLine = T, groupBy = "groupz", comparison = "compareLinDEG", outDir = outDir, outName = paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME)), colUp = "red", colDwn = "blue", subtitle = T, returnUpList = F, returnDwnList = F, forceReturn = T
+        linDEG(seu.obj = seu.sub.clean, threshold = 1, thresLine = T, groupBy = "groupz", 
+               comparison = "compareLinDEG", outDir = outDir, 
+               outName = paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME)), 
+               colUp = "red", colDwn = "blue", subtitle = T, returnUpList = F, returnDwnList = F, forceReturn = T
               )
     }
-    print(meta)
-    p <- pseudoDEG(padj_cutoff = padj_cutoff, lfcCut = lfcCut, outName = paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME)), 
-              outDir = outDir, title = title, fromFile = F, meta = meta, pbj = pbj, returnVolc = returnVolc, paired = paired, pairBy = "bioRepPair", strict_lfc = strict_lfc,
-                   idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, saveSigRes = T, addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,upCol = upCol, labSize = labSize, filterTerm = filterTerm
-                     )    
-    return(p)
+    
+    if(onlyExtractPBJ){
+        return(list(meta, pbj))
+    } else{
+        p <- pseudoDEG(padj_cutoff = padj_cutoff, lfcCut = lfcCut,
+                       outName = paste0(gsub(" ", "_", idents.1_NAME), "_vs_",gsub(" ", "_",idents.2_NAME)),
+                       outDir = outDir, title = title, fromFile = F, meta = meta, pbj = pbj, 
+                       returnVolc = returnVolc, paired = paired, pairBy = "bioRepPair", strict_lfc = strict_lfc,
+                       idents.1_NAME = idents.1_NAME, idents.2_NAME = idents.2_NAME, minimalOuts = T, 
+                       addLabs = addLabs, topn = topn, dwnCol = dwnCol, stblCol = stblCol,
+                       upCol = upCol, labSize = labSize, filterTerm = filterTerm, test.use = test.use, 
+                       featuresToExclude = featuresToExclude, saveSigRes = saveSigRes
+                      )    
+        return(p)
+    }
 }
 ############ volcFromFM ############
 volcFromFM <- function(seu.obj = NULL, padj_cutoff = 0.01, lfcCut = 0.58, title = "",
@@ -2218,14 +2307,13 @@ vilnPlots <- function(
     outName = "",
     outDir = "",
     outputGeneList = T,
-    filterOutFeats = c("^MT-", "^RPL", "^RPS"),
+    filterOutFeats = NULL,
     Assay = "RNA",
-    returnViln = T,
-    features = NULL,
-    min.pct = 0.25,
-    only.pos = T,
+    saveViln = T,
     resume = F,
-    resumeFile = NULL
+    resumeFile = NULL,
+    p_adj_cutOff = 0.01,
+    ...
     ){ 
     
     if(!resume){
@@ -2240,11 +2328,11 @@ vilnPlots <- function(
         Idents(seu.obj) <- groupBy
         ident.level <- levels(seu.obj@active.ident)
 
-        cluster.markers <- FindAllMarkers(seu.obj, only.pos = only.pos, min.pct = min.pct, features = features)
-        cluster.markers <- cluster.markers[cluster.markers$p_val_adj < 0.01, ]
+        cluster.markers <- FindAllMarkers(seu.obj, ...)
+        cluster.markers <- cluster.markers[cluster.markers$p_val_adj < p_adj_cutOff, ]
         
-        if(length(filterOutFeats) > 0){
-            cluster.markers <- cluster.markers[!grepl(paste(filterOutFeats,collapse="|"), rownames(cluster.markers)), ]
+        if(! is.null(filterOutFeats)){
+            cluster.markers <- cluster.markers[! grepl(paste(filterOutFeats, collapse = "|"), rownames(cluster.markers)), ]
         }     
         
         if (outputGeneList == TRUE){
@@ -2258,25 +2346,27 @@ vilnPlots <- function(
         Idents(seu.obj) <- groupBy
     }
     
-    if(returnViln){
+    if(saveViln){
         
         lapply(unique(cluster.markers$cluster), function(x) {
 
-            geneList <- cluster.markers[cluster.markers$cluster == x, ]
-            geneList <- geneList$gene
-
-            plotList <- head(geneList, n = numOfFeats)
-
-            seurat.vlnplot <- VlnPlot(
+            geneList <- cluster.markers[cluster.markers$cluster == x, ]$gene[1:numOfFeats]
+            
+            colz <- rep("grey", length(levels(Idents(seu.obj))))
+            colz[which(unique(cluster.markers$cluster) == x)] <- "pink"
+            pis <- VlnPlot(
                 object = seu.obj,
-                features = rev(plotList)
+                features = geneList,
+                cols = colz
+            ) &
+            theme(
+                plot.title = element_text(size = 10),
+                axis.title = element_blank(),
+                axis.text = element_text(size = 8)
             )
 
-            outfile <- paste0(outDir, outName, "_", x, "_top", numOfFeats, "_vlnPlot.png") 
-            png(file = outfile, width=2520, height=1460)
+            ggsave(paste0(outDir, outName, "_", x, "_top", numOfFeats, "_vlnPlot.png"), height = 6, width = 8, scale = 2)
 
-            print(seurat.vlnplot)
-            dev.off()
         })
     }
     
@@ -2320,7 +2410,7 @@ singleR <- function(seu.obj = NULL, reduction = NULL, clusters = "clusterID",
 
 cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID", legLabel = NULL, groupLabel = NULL, colorz = NULL, dotSize = 8,
                    groupBy = "", sortBy = "", labCol = "", headerSize = 6, #add if len labCol == 1 then add col to the df
-                   cellHeader = T, bump = 2, nudge_left = 0, nudge_right = 0, topBuffer = 1.05, ymin = 0, compress_y = 0, compress_x = 0.75, titleOrder = NULL, spaceBtwnCols = NULL, breakGroups = F, horizontalWrap = F, returnData = F, overrideData = NULL
+                   cellHeader = T, bump = 2, topBuffer = 1.05, ymin = 0, compress_y = 0, compress_x = 0.75, titleOrder = NULL, spaceBtwnCols = NULL, breakGroups = F, horizontalWrap = F, returnData = F, overrideData = NULL
                      ){
     
     if(is.null(colorz)){
@@ -2348,7 +2438,7 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
         }
     }
     
-    if(length(spaceBtwnCols) < colz-1){
+    if (length(spaceBtwnCols) < colz - 1) {
         message("Invalid spaceBtwnCols entry. Ensure list is correct length!")
     }
     
@@ -2438,6 +2528,7 @@ cusLeg <- function(legend = NULL, colz = 2, rowz = NULL, clusLabel = "clusterID"
         header <- as.data.frame(overrideData[2])
     }
 
+    browser()
     p <- ggplot() + geom_point(data = legend, aes(x = leg_x, y = leg_y),
                     shape=21,
                     size=dotSize,
