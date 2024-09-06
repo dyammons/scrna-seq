@@ -58,13 +58,10 @@ write.table(
 ### Run the deconvolution algo
 
 ```sh
-singularity exec -B /pl/active/dow_lab/dylan/bov_lav_bulk/output/cibersort_data:/src/data -B /pl/active/dow_lab/dylan/bov_lav_bulk/output/cibersort_output:/src/outdir /pl/active/dow_lab/dylan/software/cibersort/fractions_latest.sif /src/CIBERSORTxFractions \
---username dyammons@colostate.edu \
---token b451a793ee4a3357367ea2fb3d551fcc \
---single_cell TRUE \
---refsample scrna_celltype_l2.txt \
---mixture mixture.txt \
---rmbatchSmode TRUE 
+singularity exec -B /pl/active/dow_lab/dylan/bov_lav_bulk/output/cibersort_data:/src/data -B /pl/active/dow_lab/dylan/bov_lav_bulk/output/cibersort_output/noBatch:/src/outdir /pl/active/dow_lab/dylan/software/cibersort/fractions_latest.sif /src/CIBERSORTxFractions --username dyammons@colostate.edu --token  --single_cell TRUE --refsample scrna_celltype_l2.txt --mixture mixture.txt --fraction 0 --replicates 5 --remake TRUE
 
+singularity exec -B /pl/active/dow_lab/dylan/bov_lav_bulk/output/cibersort_data:/src/data -B /pl/active/dow_lab/dylan/bov_lav_bulk/output/cibersort_output/sBatch:/src/outdir /pl/active/dow_lab/dylan/software/cibersort/fractions_latest.sif /src/CIBERSORTxFractions --username dyammons@colostate.edu --token  --single_cell TRUE --refsample scrna_celltype_l2.txt --mixture mixture.txt --fraction 0 --replicates 5 --remake TRUE --rmbatchSmode TRUE
+
+singularity exec -B /pl/active/dow_lab/dylan/bov_lav_bulk/output/cibersort_data:/src/data -B /pl/active/dow_lab/dylan/bov_lav_bulk/output/cibersort_output/bBatch:/src/outdir /pl/active/dow_lab/dylan/software/cibersort/fractions_latest.sif /src/CIBERSORTxFractions --username dyammons@colostate.edu --token  --single_cell TRUE --refsample scrna_celltype_l2.txt --mixture mixture.txt --fraction 0 --replicates 5 --remake TRUE --rmbatchBmode TRUE
 ```
 Still working on this....
